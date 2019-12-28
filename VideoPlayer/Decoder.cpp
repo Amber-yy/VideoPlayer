@@ -113,58 +113,10 @@ QString Decoder::setFile(const QString & file)
 		}
 	}
 
-	if (data->videoindex != -1)
-	{
-		data->pCodecCtx = data->pFormatCtx->streams[data->videoindex]->codec;
-		data->pCodec = avcodec_find_decoder(data->pCodecCtx->codec_id);
-		if (data->pCodec == nullptr)
-		{
-			return QString(u8"找不到对应的解码器：" + file);
-		}
+	openVideoDecodec(data->videoindex);
+	openAudioDecodec(data->audios[data->audios.size() - 1]);
 
-		if (avcodec_open2(data->pCodecCtx, data->pCodec, nullptr) < 0)
-		{
-			return QString(u8"无法打开对应的解码器：" + file);
-		}
-
-		data->pFrame = av_frame_alloc();
-		data->pFrameRGB = av_frame_alloc();
-		data->bufSize = av_image_get_buffer_size(AV_PIX_FMT_RGB32, data->pCodecCtx->width, data->pCodecCtx->height, 1);
-		data->out_buffer = (unsigned char *)av_malloc(data->bufSize);
-
-		av_image_fill_arrays(data->pFrameRGB->data, data->pFrameRGB->linesize, data->out_buffer,
-		AV_PIX_FMT_RGB32, data->pCodecCtx->width, data->pCodecCtx->height, 1);
-
-		data->img_convert_ctx = sws_getContext(data->pCodecCtx->width, data->pCodecCtx->height, data->pCodecCtx->pix_fmt,
-			data->pCodecCtx->width, data->pCodecCtx->height, AV_PIX_FMT_RGB32, SWS_FAST_BILINEAR, NULL, NULL, NULL);
-	}
-
-	data->audioindex = data->audios[data->audios.size()-1];
-
-	if (data->audioindex != -1)
-	{
-		data->pCodecCtxA = data->pFormatCtx->streams[data->audioindex]->codec;
-		data->pCodecA = avcodec_find_decoder(data->pCodecCtxA->codec_id);
-		if (data->pCodecA == nullptr)
-		{
-			return QString(u8"找不到对应的解码器：" + file);
-		}
-
-		if (avcodec_open2(data->pCodecCtxA, data->pCodecA, nullptr) < 0)
-		{
-			return QString(u8"无法打开对应的解码器：" + file);
-		}
-
-		data->aFrame_ReSample = av_frame_alloc();
-		data->bufSizeA = 192000*2;
-		data->out_bufferA = (unsigned char *)av_malloc(data->bufSizeA);
-
-		data->au_convert_ctx = swr_alloc();
-		data->au_convert_ctx = swr_alloc_set_opts(data->au_convert_ctx, AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, 44100,
-			av_get_default_channel_layout(data->pCodecCtxA->channels), data->pCodecCtxA->sample_fmt, data->pCodecCtxA->sample_rate, 0, NULL);
-		swr_init(data->au_convert_ctx);
-	}
-
+	data->pFrame = av_frame_alloc();
 	data->packet = (AVPacket *)av_malloc(sizeof(AVPacket));
 
 	return QString();
@@ -264,23 +216,12 @@ void Decoder::decode()
 		}
 	}
 
-	av_free(data->out_buffer);
-	av_free(data->out_bufferA);
-	avcodec_close(data->pCodecCtx);
-	avcodec_close(data->pCodecCtxA);
+	cleanVideo();
+	cleanAudio();
+
 	avformat_close_input(&data->pFormatCtx);
-
-	swr_close(data->au_convert_ctx);
-	swr_free(&data->au_convert_ctx);
-	sws_freeContext(data->img_convert_ctx);
-	data->img_convert_ctx = nullptr;
-
 	av_frame_free(&data->pFrame);
-	av_frame_free(&data->pFrameRGB);
-	av_frame_free(&data->aFrame_ReSample);
 	av_free(&data->packet);
-	delete[] data->audioBuffer;
-	data->audioBuffer = nullptr;
 }
 
 void Decoder::stop()
@@ -424,4 +365,93 @@ bool Decoder::decodeAudio()
 	}
 
 	return true;
+}
+
+QString Decoder::openVideoDecodec(int index)
+{
+	data->videoindex = index;
+
+	if (data->videoindex != -1)
+	{
+		data->pCodecCtx = data->pFormatCtx->streams[data->videoindex]->codec;
+		data->pCodec = avcodec_find_decoder(data->pCodecCtx->codec_id);
+		if (data->pCodec == nullptr)
+		{
+			data->videoindex = -1;
+			return QString(u8"找不到对应的视频解码器");
+		}
+
+		if (avcodec_open2(data->pCodecCtx, data->pCodec, nullptr) < 0)
+		{
+			data->videoindex = -1;
+			return QString(u8"无法打开对应的视频解码器");
+		}
+
+		data->pFrameRGB = av_frame_alloc();
+		data->bufSize = av_image_get_buffer_size(AV_PIX_FMT_RGB32, data->pCodecCtx->width, data->pCodecCtx->height, 1);
+		data->out_buffer = (unsigned char *)av_malloc(data->bufSize);
+
+		av_image_fill_arrays(data->pFrameRGB->data, data->pFrameRGB->linesize, data->out_buffer,
+			AV_PIX_FMT_RGB32, data->pCodecCtx->width, data->pCodecCtx->height, 1);
+
+		data->img_convert_ctx = sws_getContext(data->pCodecCtx->width, data->pCodecCtx->height, data->pCodecCtx->pix_fmt,
+			data->pCodecCtx->width, data->pCodecCtx->height, AV_PIX_FMT_RGB32, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+	}
+
+	return QString();
+}
+
+QString Decoder::openAudioDecodec(int index)
+{
+	data->audioindex = index;
+
+	if (data->audioindex != -1)
+	{
+		data->pCodecCtxA = data->pFormatCtx->streams[data->audioindex]->codec;
+		data->pCodecA = avcodec_find_decoder(data->pCodecCtxA->codec_id);
+		if (data->pCodecA == nullptr)
+		{
+
+			return QString(u8"找不到对应的音频解码器");
+		}
+
+		if (avcodec_open2(data->pCodecCtxA, data->pCodecA, nullptr) < 0)
+		{
+			data->audioindex = -1;
+			return QString(u8"无法打开对应的音频解码器");
+		}
+
+		data->aFrame_ReSample = av_frame_alloc();
+		data->bufSizeA = 192000 * 2;
+		data->out_bufferA = (unsigned char *)av_malloc(data->bufSizeA);
+
+		data->au_convert_ctx = swr_alloc();
+		data->au_convert_ctx = swr_alloc_set_opts(data->au_convert_ctx, AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16, 44100,
+			av_get_default_channel_layout(data->pCodecCtxA->channels), data->pCodecCtxA->sample_fmt, data->pCodecCtxA->sample_rate, 0, NULL);
+		swr_init(data->au_convert_ctx);
+	}
+
+	return QString();
+}
+
+void Decoder::cleanVideo()
+{
+	av_free(data->out_buffer);
+	data->out_buffer = nullptr;
+	avcodec_close(data->pCodecCtx);
+	sws_freeContext(data->img_convert_ctx);
+	data->img_convert_ctx = nullptr;
+	av_frame_free(&data->pFrameRGB);
+}
+
+void Decoder::cleanAudio()
+{
+	av_free(data->out_bufferA);
+	data->out_bufferA = nullptr;
+	avcodec_close(data->pCodecCtxA);
+	swr_close(data->au_convert_ctx);
+	swr_free(&data->au_convert_ctx);
+	av_frame_free(&data->aFrame_ReSample);
+	delete[] data->audioBuffer;
+	data->audioBuffer = nullptr;
 }

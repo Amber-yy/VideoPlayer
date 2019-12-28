@@ -15,6 +15,13 @@ struct Audio
 	int size;
 };
 
+struct Subtitle
+{
+	char *data;
+	long long start;
+	long long end;
+};
+
 class Decoder:public QObject
 {
 	Q_OBJECT
@@ -35,6 +42,10 @@ public:
 protected:
 	bool decodeVideo();
 	bool decodeAudio();
+	QString openVideoDecodec(int index);
+	QString openAudioDecodec(int index);
+	void cleanVideo();
+	void cleanAudio();
 protected:
 	struct Data;
 	Data *data = nullptr;

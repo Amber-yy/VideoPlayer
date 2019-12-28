@@ -8,5 +8,7 @@ class VideoRender : public QWidget
 public:
 	VideoRender(QWidget *parent = nullptr);
 	~VideoRender();
+
+
 };
 
