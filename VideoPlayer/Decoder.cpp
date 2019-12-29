@@ -37,6 +37,8 @@ struct Decoder::Data
 	AVCodec *pCodec = nullptr;
 	AVCodecContext	*pCodecCtxA = nullptr;
 	AVCodec *pCodecA = nullptr;
+	AVCodecContext	*pCodecCtxS = nullptr;
+	AVCodec *pCodecS = nullptr;
 	AVFrame	*pFrame = nullptr, *pFrameRGB = nullptr;
 	AVFrame *aFrame_ReSample = nullptr;
 	SwsContext *img_convert_ctx = nullptr;
@@ -44,12 +46,15 @@ struct Decoder::Data
 	AVPacket *packet = nullptr;
 	void(*audioCallBack)(void *,Audio) = nullptr;
 	void *audioArg = nullptr;
+	void(*subtitleCallBack)(void *, Subtitle) = nullptr;
+	void *subtitleArg = nullptr;
 	char *audioBuffer = nullptr;
 	int audioBufferSize = 0;
 	unsigned char *out_buffer = nullptr;
 	unsigned char *out_bufferA = nullptr;
 	int videoindex = -1;
 	int audioindex = -1;
+	int subtitleindex = -1;
 	int bufSize = -1;
 	int bufSizeA = -1;
 	bool isWorking = true;
@@ -57,7 +62,9 @@ struct Decoder::Data
 	bool isSignaled = false;
 	bool isStop = false;
 	QVector<int> audios;
+	QVector<QString> audioInfo;
 	QVector<int> subtitles;
+	QVector<QString> subtitleInfo;
 	QQueue<Video> images1;
 	QQueue<Video> images2;
 };
@@ -95,6 +102,8 @@ QString Decoder::setFile(const QString & file)
 	data->videoindex = -1;
 	data->audios.clear();
 	data->subtitles.clear();
+	data->audioInfo.clear();
+	data->subtitleInfo.clear();
 
 	for (int i = 0; i < data->pFormatCtx->nb_streams; i++)
 	{
@@ -106,15 +115,34 @@ QString Decoder::setFile(const QString & file)
 		else if (t == AVMEDIA_TYPE_AUDIO)
 		{
 			data->audios.push_back(i);
+			AVDictionaryEntry *t = av_dict_get(data->pFormatCtx->streams[i]->metadata, "language", NULL, AV_DICT_IGNORE_SUFFIX);
+			if (t)
+			{
+				QString str(t->value);
+				data->audioInfo.push_back(str);
+			}
 		}
 		else if (t == AVMEDIA_TYPE_SUBTITLE)
 		{
 			data->subtitles.push_back(i);
+			AVDictionaryEntry *t = av_dict_get(data->pFormatCtx->streams[i]->metadata, "language", NULL, AV_DICT_IGNORE_SUFFIX);
+			if (t)
+			{
+				QString str(t->value);
+				data->subtitleInfo.push_back(str);
+			}
 		}
 	}
 
 	openVideoDecodec(data->videoindex);
-	openAudioDecodec(data->audios[data->audios.size() - 1]);
+	if (data->audios.size())
+	{
+		openAudioDecodec(data->audios[0]);
+	}
+	if (data->subtitles.size())
+	{
+		openSubTitleDecodec(data->subtitles[0]);
+	}
 
 	data->pFrame = av_frame_alloc();
 	data->packet = (AVPacket *)av_malloc(sizeof(AVPacket));
@@ -148,6 +176,12 @@ void Decoder::setAudioCallBack(void(*callBack)(void *, Audio), void * arg)
 {
 	data->audioCallBack = callBack;
 	data->audioArg = arg;
+}
+
+void Decoder::setSubtitleCallBack(void(*callBack)(void *, Subtitle), void * arg)
+{
+	data->subtitleArg = callBack;
+	data->subtitleArg = arg;
 }
 
 QVector<int> Decoder::getAudio()
@@ -201,6 +235,10 @@ void Decoder::decode()
 			{
 				ok = decodeAudio();
 			}
+			else if (data->packet->stream_index == data->subtitleindex)
+			{
+				ok = decodeSubtitle();
+			}
 
 			av_free_packet(data->packet);
 
@@ -218,6 +256,7 @@ void Decoder::decode()
 
 	cleanVideo();
 	cleanAudio();
+	cleanSubTitle();
 
 	avformat_close_input(&data->pFormatCtx);
 	av_frame_free(&data->pFrame);
@@ -240,7 +279,7 @@ bool Decoder::decodeVideo()
 		return false;
 	}
 
-	if (got_picture > 0)
+	if (got_picture != 0)
 	{
 		sws_scale(data->img_convert_ctx, (const unsigned char* const*)data->pFrame->data, data->pFrame->linesize, 0, data->pCodecCtx->height,
 			data->pFrameRGB->data, data->pFrameRGB->linesize);
@@ -312,7 +351,7 @@ bool Decoder::decodeAudio()
 		return false;
 	}
 
-	if (got_picture > 0)
+	if (got_picture != 0)
 	{
 		if (data->aFrame_ReSample->nb_samples != data->pFrame->nb_samples)
 		{
@@ -362,6 +401,105 @@ bool Decoder::decodeAudio()
 			}
 		}
 
+	}
+
+	return true;
+}
+
+static long long parseTime(char *ass, int i)
+{
+	long long h = ass[i + 1] - '0';
+	long long mins = (ass[i + 3] - '0') * 10 + ass[i + 4] - '0';
+	long long s = (ass[i + 6] - '0') * 10 + ass[i + 7] - '0';
+	long long ms = ((ass[i + 9] - '0') * 10 + ass[i + 10] - '0') * 10;
+
+	return h*3600 * 1000 + mins*60 * 1000 + s * 1000 + ms;
+}
+
+static QString parseText(char *ass)
+{
+	QString result;
+
+	for (int i = 0; ass[i] != 0; ++i)
+	{
+		if (ass[i] == '[')
+		{
+			while (ass[i] != ']' && ass[i++] != 0);
+		}
+		else if (ass[i] == '{')
+		{
+			while (ass[i] != '}' && ass[i++] != 0);
+		}
+		else if (ass[i] == '\\')
+		{
+			++i;
+		}
+		else
+		{
+			result.append(ass[i]);
+		}
+	}
+
+	return result.trimmed();
+}
+
+static Subtitle parseAss(char *ass)
+{
+	Subtitle result;  
+	int counter = 0;
+
+	for (int i = 0; ass[i] != 0; ++i)
+	{
+		if (ass[i] == ',')
+		{
+			++counter;
+			//start
+			if (counter == 1)
+			{
+				result.start = parseTime(ass, i);
+			}
+
+			//end
+			if (counter == 2)
+			{
+				result.end = parseTime(ass, i);
+			}
+
+			//text
+			if (counter == 9)
+			{
+				result.text = parseText(ass + i + 1);
+			}
+		}
+	}
+
+	return result;
+}
+
+bool Decoder::decodeSubtitle()
+{
+	int got_picture;
+	AVSubtitle subtitle;
+	int ret = avcodec_decode_subtitle2(data->pCodecCtxS, &subtitle, &got_picture, data->packet);
+
+	if (ret < 0)
+	{
+		return false;
+	}
+
+	if (got_picture > 0)
+	{
+		int number = subtitle.num_rects;
+		for (int i = 0; i < number; ++i)
+		{
+			Subtitle r = parseAss(subtitle.rects[i]->ass);
+			if (r.text.length())
+			{
+				data->subtitleCallBack(data->subtitleArg,r);
+			}
+		}
+
+		avsubtitle_free(&subtitle);
 	}
 
 	return true;
@@ -434,6 +572,30 @@ QString Decoder::openAudioDecodec(int index)
 	return QString();
 }
 
+QString Decoder::openSubTitleDecodec(int index)
+{
+	data->subtitleindex = index;
+
+	if (data->subtitleindex != -1)
+	{
+		data->pCodecCtxS = data->pFormatCtx->streams[data->subtitleindex]->codec;
+		data->pCodecS= avcodec_find_decoder(data->pCodecCtxS->codec_id);
+		if (data->pCodecS == nullptr)
+		{
+			data->subtitleindex = -1;
+			return QString(u8"找不到对应的字幕解码器");
+		}
+
+		if (avcodec_open2(data->pCodecCtxS, data->pCodecS, nullptr) < 0)
+		{
+			data->subtitleindex = -1;
+			return QString(u8"无法打开对应的字幕解码器");
+		}
+	}
+
+	return QString();
+}
+
 void Decoder::cleanVideo()
 {
 	av_free(data->out_buffer);
@@ -454,4 +616,9 @@ void Decoder::cleanAudio()
 	av_frame_free(&data->aFrame_ReSample);
 	delete[] data->audioBuffer;
 	data->audioBuffer = nullptr;
+}
+
+void Decoder::cleanSubTitle()
+{
+	avcodec_close(data->pCodecCtxS);
 }

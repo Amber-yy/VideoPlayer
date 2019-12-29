@@ -25,6 +25,7 @@ struct VideoPlayer::Data
 	QIODevice *audioDevice = nullptr;
 	Audio currentAudio;
 	int currentAudioIt;
+	double volume = 0.5;
 	bool shown = true;
 	Video tempVideo;
 	clock_t start;
@@ -37,6 +38,11 @@ struct VideoPlayer::Data
 static void AudioCallBack(void *arg,Audio audio)
 {
 	static_cast<VideoPlayer *>(arg)->OnAudioGetted(audio);
+}
+
+static void SubTitleCallBack(void *arg,Subtitle sub)
+{
+	
 }
 
 VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
@@ -56,11 +62,12 @@ VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 	data->audio = new QAudioOutput(audioFormat,this);
 	data->audio->setBufferSize(audioBufferSize);
 
-	QString str = data->decoder->setFile("f:/u.mp3");
+	QString str = data->decoder->setFile("f:/r.mkv");
 	data->thread->setDecoder(data->decoder);
 	data->thread->start();
 	data->decoder->setAudioCallBack(AudioCallBack,this);
-	
+	data->decoder->setSubtitleCallBack(SubTitleCallBack, this);
+
 	data->timer = new QTimer(this);
 	data->timerA = new QTimer(this);
 	connect(data->timer, &QTimer::timeout, this, &VideoPlayer::OnVideo);
@@ -123,7 +130,6 @@ void VideoPlayer::OnAudio()
 		data->currentAudio = data->audios.takeFirst();
 		data->audioMutex.unlock();
 		data->currentAudioIt = 0;
-
 		if (data->decoder->getVideo() != 0 && data->audios.size() < maxAudioSize/2)
 		{
 			data->decoder->switchWorkState(true);
@@ -133,6 +139,7 @@ void VideoPlayer::OnAudio()
 	if (data->audio->bytesFree() && data->currentAudio.buffer)
 	{
 		int size = std::min(data->audio->bytesFree(), data->currentAudio.size - data->currentAudioIt);
+		ShiftVolume(data->currentAudio.buffer+ data->currentAudioIt, size, data->volume);
 		data->audioDevice->write(data->currentAudio.buffer + data->currentAudioIt, size);
 		data->currentAudioIt += size;
 		if (data->currentAudioIt >= data->currentAudio.size)
@@ -155,7 +162,6 @@ void VideoPlayer::OnFrameGetted()
 
 void VideoPlayer::OnAudioGetted(Audio audio)
 {
-	ShiftVolume(audio.buffer, audio.size, 0.5);
 	data->audioMutex.lock();
 	data->audios.push_back(audio);
 	data->audioMutex.unlock();

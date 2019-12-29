@@ -17,7 +17,7 @@ struct Audio
 
 struct Subtitle
 {
-	char *data;
+	QString text;
 	long long start;
 	long long end;
 };
@@ -36,16 +36,20 @@ public:
 	QSize getVideoSize();
 	int getVideo();
 	void setAudioCallBack(void (*callBack)(void *,Audio),void *arg);
+	void setSubtitleCallBack(void(*callBack)(void *, Subtitle), void *arg);
 	void switchWorkState(bool work);
 	void decode();
 	void stop();
 protected:
 	bool decodeVideo();
 	bool decodeAudio();
+	bool decodeSubtitle();
 	QString openVideoDecodec(int index);
 	QString openAudioDecodec(int index);
+	QString openSubTitleDecodec(int index);
 	void cleanVideo();
 	void cleanAudio();
+	void cleanSubTitle();
 protected:
 	struct Data;
 	Data *data = nullptr;
