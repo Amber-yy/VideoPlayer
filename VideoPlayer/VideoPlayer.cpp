@@ -30,8 +30,10 @@ struct VideoPlayer::Data
 	Video tempVideo;
 	clock_t start;
 	QQueue<Audio> audios;
-	//QQueue<Audio> tempAudio;
+	QQueue<Subtitle> subtitles;
+	QList<Subtitle> currentSubtitles;
 	QMutex audioMutex;
+	QMutex subtitleMutex;
 	QImage img;
 };
 
@@ -42,7 +44,7 @@ static void AudioCallBack(void *arg,Audio audio)
 
 static void SubTitleCallBack(void *arg,Subtitle sub)
 {
-	
+	static_cast<VideoPlayer *>(arg)->OnSubtitleGetted(sub);
 }
 
 VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
@@ -95,6 +97,8 @@ void VideoPlayer::OnVideo()
 		data->imgs = data->decoder->getFrame();
 	}
 
+	clock_t cur = clock() - data->start;
+
 	if (data->imgs->size())
 	{
 		if (data->shown)
@@ -103,14 +107,13 @@ void VideoPlayer::OnVideo()
 			data->img = data->tempVideo.img;
 		}
 
-		clock_t cur = clock()-data->start;
 		int delta = data->tempVideo.pts - cur;
 
 		if (delta < 5)
 		{
-			if (delta-2 > 0)
+			if (delta - 2 > 0)
 			{
-				QThread::msleep(delta-2);
+				QThread::msleep(delta - 2);
 			}
 			data->shown = true;
 			update();
@@ -120,6 +123,30 @@ void VideoPlayer::OnVideo()
 			data->shown = false;
 		}
 	}
+
+	if (data->subtitles.size() > 0)
+	{
+		if (data->subtitles.front().start <= cur)
+		{
+			data->subtitleMutex.lock();
+			data->currentSubtitles.push_back(data->subtitles.takeAt(0));
+			data->subtitleMutex.unlock();
+		}
+	}
+
+	for (auto it = data->currentSubtitles.begin(); it != data->currentSubtitles.end(); ++it)
+	{
+		if (cur >= it->end)
+		{
+			auto temp = it++;
+			data->currentSubtitles.erase(temp);
+			if (it == data->currentSubtitles.end())
+			{
+				break;
+			}
+		}
+	}
+
 }
 
 void VideoPlayer::OnAudio()
@@ -172,10 +199,33 @@ void VideoPlayer::OnAudioGetted(Audio audio)
 	}
 }
 
+void VideoPlayer::OnSubtitleGetted(Subtitle sub)
+{
+	data->subtitleMutex.lock();
+	data->subtitles.push_back(sub);
+	data->subtitleMutex.unlock();
+}
+
 void VideoPlayer::paintEvent(QPaintEvent * e)
 {
 	QPainter painter(this);
 	painter.drawImage(rect(), data->img);
+	QString str;
+
+	for (auto s : data->currentSubtitles)
+	{
+		str.append(s.text + "\n");
+	}
+
+	if (!str.isEmpty())
+	{
+		painter.setPen(Qt::white);
+		QFont font(u8"Î¢ÈíÑÅºÚ");
+		font.setPixelSize(16);
+		painter.setFont(font);
+		painter.drawText(QRect(0,900,1920,100),Qt::AlignCenter,str);
+	}
+
 }
 
 void VideoPlayer::closeEvent(QCloseEvent * e)

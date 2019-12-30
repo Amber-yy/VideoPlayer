@@ -18,8 +18,8 @@ struct Audio
 struct Subtitle
 {
 	QString text;
-	long long start;
-	long long end;
+	int start;
+	int end;
 };
 
 class Decoder:public QObject

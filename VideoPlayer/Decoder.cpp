@@ -137,11 +137,11 @@ QString Decoder::setFile(const QString & file)
 	openVideoDecodec(data->videoindex);
 	if (data->audios.size())
 	{
-		openAudioDecodec(data->audios[0]);
+		openAudioDecodec(data->audios[2]);
 	}
 	if (data->subtitles.size())
 	{
-		openSubTitleDecodec(data->subtitles[0]);
+		openSubTitleDecodec(data->subtitles[2]);
 	}
 
 	data->pFrame = av_frame_alloc();
@@ -180,7 +180,7 @@ void Decoder::setAudioCallBack(void(*callBack)(void *, Audio), void * arg)
 
 void Decoder::setSubtitleCallBack(void(*callBack)(void *, Subtitle), void * arg)
 {
-	data->subtitleArg = callBack;
+	data->subtitleCallBack = callBack;
 	data->subtitleArg = arg;
 }
 
@@ -406,12 +406,12 @@ bool Decoder::decodeAudio()
 	return true;
 }
 
-static long long parseTime(char *ass, int i)
+static int parseTime(char *ass, int i)
 {
-	long long h = ass[i + 1] - '0';
-	long long mins = (ass[i + 3] - '0') * 10 + ass[i + 4] - '0';
-	long long s = (ass[i + 6] - '0') * 10 + ass[i + 7] - '0';
-	long long ms = ((ass[i + 9] - '0') * 10 + ass[i + 10] - '0') * 10;
+	int h = ass[i + 1] - '0';
+	int mins = (ass[i + 3] - '0') * 10 + ass[i + 4] - '0';
+	int s = (ass[i + 6] - '0') * 10 + ass[i + 7] - '0';
+	int ms = ((ass[i + 9] - '0') * 10 + ass[i + 10] - '0') * 10;
 
 	return h*3600 * 1000 + mins*60 * 1000 + s * 1000 + ms;
 }

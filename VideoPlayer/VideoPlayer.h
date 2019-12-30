@@ -3,6 +3,7 @@
 #include <QWidget>
 
 class Audio;
+class Subtitle;
 
 class VideoPlayer : public QWidget
 {
@@ -14,6 +15,7 @@ public:
 	void OnAudio();
 	void OnFrameGetted();
 	void OnAudioGetted(Audio audio);
+	void OnSubtitleGetted(Subtitle audio);
 protected:
 	virtual void paintEvent(QPaintEvent *e)override;
 	virtual void closeEvent(QCloseEvent *e)override;
