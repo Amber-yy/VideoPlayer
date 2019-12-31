@@ -137,11 +137,11 @@ QString Decoder::setFile(const QString & file)
 	openVideoDecodec(data->videoindex);
 	if (data->audios.size())
 	{
-		openAudioDecodec(data->audios[2]);
+		openAudioDecodec(data->audios[0]);
 	}
 	if (data->subtitles.size())
 	{
-		openSubTitleDecodec(data->subtitles[2]);
+		openSubTitleDecodec(data->subtitles[0]);
 	}
 
 	data->pFrame = av_frame_alloc();

@@ -66,7 +66,7 @@ VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 	data->audio = new QAudioOutput(audioFormat,this);
 	data->audio->setBufferSize(audioBufferSize);
 
-	QString str = data->decoder->setFile("f:/r.mkv");
+	QString str = data->decoder->setFile("f:/w.mkv");
 	data->thread->setDecoder(data->decoder);
 	data->thread->start();
 	data->decoder->setAudioCallBack(AudioCallBack,this);
