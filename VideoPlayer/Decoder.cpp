@@ -27,7 +27,7 @@ extern "C"
 #pragma comment(lib, "swresample.lib")
 }
 
-const int maxImgs = 5;
+const int maxImgs = 2;
 const int minAudio = 4096;
 
 struct Decoder::Data

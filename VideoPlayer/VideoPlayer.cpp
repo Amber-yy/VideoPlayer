@@ -1,4 +1,5 @@
 #include "VideoPlayer.h"
+#include "VideoRender.h"
 #include "Decoder.h"
 #include "DecodeThread.h"
 #include <QPainter>
@@ -23,6 +24,7 @@ struct VideoPlayer::Data
 	QQueue<Video> *imgs = nullptr;
 	QAudioOutput *audio = nullptr;
 	QIODevice *audioDevice = nullptr;
+	VideoRender *render = nullptr;
 	Audio currentAudio;
 	int currentAudioIt;
 	double volume = 0.5;
@@ -34,7 +36,6 @@ struct VideoPlayer::Data
 	QList<Subtitle> currentSubtitles;
 	QMutex audioMutex;
 	QMutex subtitleMutex;
-	QImage img;
 };
 
 static void AudioCallBack(void *arg,Audio audio)
@@ -52,6 +53,7 @@ VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 	data = new Data;
 	data->decoder = new Decoder(this);
 	data->thread = new DecodeThread(this);
+	data->render = new VideoRender(this);
 
 	QAudioFormat audioFormat;
 	audioFormat.setSampleRate(44100);
@@ -99,12 +101,22 @@ void VideoPlayer::OnVideo()
 
 	clock_t cur = clock() - data->start;
 
+	if (data->subtitles.size() > 0)
+	{
+		if (data->subtitles.front().start <= cur)
+		{
+			data->subtitleMutex.lock();
+			data->render->addSubtitle(data->subtitles.takeAt(0),cur);
+			data->subtitleMutex.unlock();
+		}
+	}
+
 	if (data->imgs->size())
 	{
 		if (data->shown)
 		{
 			data->tempVideo = data->imgs->takeFirst();
-			data->img = data->tempVideo.img;
+			data->render->setImage(data->tempVideo.img);
 		}
 
 		int delta = data->tempVideo.pts - cur;
@@ -116,34 +128,11 @@ void VideoPlayer::OnVideo()
 				QThread::msleep(delta - 2);
 			}
 			data->shown = true;
-			update();
+			data->render->update();
 		}
 		else
 		{
 			data->shown = false;
-		}
-	}
-
-	if (data->subtitles.size() > 0)
-	{
-		if (data->subtitles.front().start <= cur)
-		{
-			data->subtitleMutex.lock();
-			data->currentSubtitles.push_back(data->subtitles.takeAt(0));
-			data->subtitleMutex.unlock();
-		}
-	}
-
-	for (auto it = data->currentSubtitles.begin(); it != data->currentSubtitles.end(); ++it)
-	{
-		if (cur >= it->end)
-		{
-			auto temp = it++;
-			data->currentSubtitles.erase(temp);
-			if (it == data->currentSubtitles.end())
-			{
-				break;
-			}
 		}
 	}
 
@@ -206,26 +195,9 @@ void VideoPlayer::OnSubtitleGetted(Subtitle sub)
 	data->subtitleMutex.unlock();
 }
 
-void VideoPlayer::paintEvent(QPaintEvent * e)
+void VideoPlayer::resizeEvent(QResizeEvent * e)
 {
-	QPainter painter(this);
-	painter.drawImage(rect(), data->img);
-	QString str;
-
-	for (auto s : data->currentSubtitles)
-	{
-		str.append(s.text + "\n");
-	}
-
-	if (!str.isEmpty())
-	{
-		painter.setPen(Qt::white);
-		QFont font(u8"Î¢ÈíÑÅºÚ");
-		font.setPixelSize(16);
-		painter.setFont(font);
-		painter.drawText(QRect(0,900,1920,100),Qt::AlignCenter,str);
-	}
-
+	data->render->setGeometry(rect());
 }
 
 void VideoPlayer::closeEvent(QCloseEvent * e)

@@ -17,7 +17,7 @@ public:
 	void OnAudioGetted(Audio audio);
 	void OnSubtitleGetted(Subtitle audio);
 protected:
-	virtual void paintEvent(QPaintEvent *e)override;
+	virtual void resizeEvent(QResizeEvent *e)override;
 	virtual void closeEvent(QCloseEvent *e)override;
 protected:
 	struct Data;
