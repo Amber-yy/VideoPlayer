@@ -27,8 +27,9 @@ extern "C"
 #pragma comment(lib, "swresample.lib")
 }
 
-const int maxImgs = 2;
-const int minAudio = 4096;
+static const int maxImgs = 2;
+static const int minAudio = 4096;
+static const AVPixelFormat fmt = AV_PIX_FMT_RGB32;
 
 struct Decoder::Data
 {
@@ -57,6 +58,10 @@ struct Decoder::Data
 	int subtitleindex = -1;
 	int bufSize = -1;
 	int bufSizeA = -1;
+	int width = 640;
+	int height = 480;
+	int curWidth = 640;
+	int curHeight = 480;
 	bool isWorking = true;
 	bool isImage1 = true;
 	bool isSignaled = false;
@@ -67,6 +72,7 @@ struct Decoder::Data
 	QVector<QString> subtitleInfo;
 	QQueue<Video> images1;
 	QQueue<Video> images2;
+	QMutex sizeMutex;
 };
 
 Decoder::Decoder(QObject *parent):QObject(parent)
@@ -170,6 +176,14 @@ QQueue<Video>* Decoder::getFrame()
 int Decoder::getVideo()
 {
 	return data->videoindex;
+}
+
+void Decoder::setImageSize(int w, int h)
+{
+	data->sizeMutex.lock();
+	data->width = w;
+	data->height = h;
+	data->sizeMutex.unlock();
 }
 
 void Decoder::setAudioCallBack(void(*callBack)(void *, Audio), void * arg)
@@ -279,8 +293,24 @@ bool Decoder::decodeVideo()
 		return false;
 	}
 
+	int imgSize = 0;
+
 	if (got_picture != 0)
 	{
+		if (data->width != data->curWidth || data->height != data->curHeight)
+		{
+			data->sizeMutex.lock();
+			data->curWidth = data->width;
+			data->curHeight = data->height;
+			data->sizeMutex.unlock();
+			av_image_fill_arrays(data->pFrameRGB->data, data->pFrameRGB->linesize, data->out_buffer,
+				fmt, data->curWidth, data->curHeight, 1);
+			sws_freeContext(data->img_convert_ctx);
+			data->img_convert_ctx = sws_getContext(data->pCodecCtx->width, data->pCodecCtx->height, data->pCodecCtx->pix_fmt,
+				data->curWidth, data->curHeight, fmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+		}
+
+		imgSize = av_image_get_buffer_size(fmt, data->curWidth, data->curHeight, 1);
 		sws_scale(data->img_convert_ctx, (const unsigned char* const*)data->pFrame->data, data->pFrame->linesize, 0, data->pCodecCtx->height,
 			data->pFrameRGB->data, data->pFrameRGB->linesize);
 	}
@@ -299,9 +329,9 @@ bool Decoder::decodeVideo()
 		imgs = &data->images2;
 	}
 
-	unsigned char *temp = (unsigned char *)av_malloc(data->bufSize);
-	memcpy(temp, data->out_buffer, data->bufSize);
-	QImage img = std::move(QImage((uchar *)temp, data->pCodecCtx->width, data->pCodecCtx->height, QImage::Format_RGB32, cleanUp, temp));
+	unsigned char *temp = (unsigned char *)av_malloc(imgSize);
+	memcpy(temp, data->out_buffer, imgSize);
+	QImage img = std::move(QImage((uchar *)temp, data->curWidth, data->curHeight, QImage::Format_RGB32, cleanUp, temp));
 
 	double video_pts = 0;
 
@@ -526,14 +556,11 @@ QString Decoder::openVideoDecodec(int index)
 		}
 
 		data->pFrameRGB = av_frame_alloc();
-		data->bufSize = av_image_get_buffer_size(AV_PIX_FMT_RGB32, data->pCodecCtx->width, data->pCodecCtx->height, 1);
+		
+		data->bufSize = av_image_get_buffer_size(fmt, MAX_WIDTH, MAX_HEIGHT, 1);
 		data->out_buffer = (unsigned char *)av_malloc(data->bufSize);
 
-		av_image_fill_arrays(data->pFrameRGB->data, data->pFrameRGB->linesize, data->out_buffer,
-			AV_PIX_FMT_RGB32, data->pCodecCtx->width, data->pCodecCtx->height, 1);
-
-		data->img_convert_ctx = sws_getContext(data->pCodecCtx->width, data->pCodecCtx->height, data->pCodecCtx->pix_fmt,
-			data->pCodecCtx->width, data->pCodecCtx->height, AV_PIX_FMT_RGB32, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+		setImageSize(data->pCodecCtx->width, data->pCodecCtx->height);
 	}
 
 	return QString();

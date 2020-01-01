@@ -22,6 +22,9 @@ struct Subtitle
 	int end;
 };
 
+#define MAX_WIDTH 3840
+#define MAX_HEIGHT 2160
+
 class Decoder:public QObject
 {
 	Q_OBJECT
@@ -35,6 +38,7 @@ public:
 	QVector<int> getAudio();
 	QSize getVideoSize();
 	int getVideo();
+	void setImageSize(int w, int h);
 	void setAudioCallBack(void (*callBack)(void *,Audio),void *arg);
 	void setSubtitleCallBack(void(*callBack)(void *, Subtitle), void *arg);
 	void switchWorkState(bool work);

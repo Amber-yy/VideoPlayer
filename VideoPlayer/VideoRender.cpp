@@ -1,6 +1,7 @@
 #include "VideoRender.h"
 #include "Decoder.h"
 
+#include <QDebug>
 #include <QPainter>
 
 struct VideoRender::Data
@@ -43,11 +44,29 @@ void VideoRender::addSubtitle(Subtitle title, clock_t cur)
 	}
 }
 
+QSize VideoRender::getBestSize(QSize win,QSize img)
+{
+	int w = win.width();
+	int h = win.height();
+	int iw = img.width();
+	int ih = img.height();
+
+	double rateWin = (double)w / h;
+	double rateImg = (double)iw / ih;
+
+	if (rateImg > rateWin)
+	{
+		return QSize(w, w / rateImg);
+	}
+
+	return QSize(h*rateImg, h);
+}
+
 void VideoRender::paintEvent(QPaintEvent * e)
 {
-	QPixmap pixmap(size());
-	pixmap.fill(Qt::black);
-	QPainter painter(&pixmap);
+	clock_t start = clock();
+	QPainter painter(this);
+	painter.fillRect(rect(), Qt::black);
 
 	QRect re;
 	int w = width();
@@ -68,7 +87,7 @@ void VideoRender::paintEvent(QPaintEvent * e)
 		re = QRect((w-h*rateImg)/2, 0, h*rateImg, h);
 	}
 
-	painter.drawImage(re, data->img);
+	painter.drawImage(re, data->img.scaled(size()));
 	QString str;
 
 	for (auto s : data->currentSubtitles)
@@ -98,6 +117,6 @@ void VideoRender::paintEvent(QPaintEvent * e)
 		data->textIni = true;
 	}
 
-	QPainter t(this);
-	t.drawPixmap(rect(),pixmap);
+	clock_t end = clock();
+	qDebug() << end - start;
 }

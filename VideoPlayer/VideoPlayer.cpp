@@ -9,6 +9,7 @@
 #include <QMutex>
 #include <QFile>
 #include <QAudioOutput>
+#include <QResizeEvent>
 
 extern void ShiftVolume(char* buf, int size, double vol);
 
@@ -198,6 +199,8 @@ void VideoPlayer::OnSubtitleGetted(Subtitle sub)
 void VideoPlayer::resizeEvent(QResizeEvent * e)
 {
 	data->render->setGeometry(rect());
+	QSize s = data->render->getBestSize(e->size(),data->decoder->getVideoSize());
+	data->decoder->setImageSize(s.width(),s.height());
 }
 
 void VideoPlayer::closeEvent(QCloseEvent * e)
