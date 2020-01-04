@@ -64,7 +64,6 @@ QSize VideoRender::getBestSize(QSize win,QSize img)
 
 void VideoRender::paintEvent(QPaintEvent * e)
 {
-	clock_t start = clock();
 	QPainter painter(this);
 	painter.fillRect(rect(), Qt::black);
 
@@ -118,5 +117,4 @@ void VideoRender::paintEvent(QPaintEvent * e)
 	}
 
 	clock_t end = clock();
-	qDebug() << end - start;
 }

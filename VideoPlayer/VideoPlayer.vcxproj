@@ -95,6 +95,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ControlBar.cpp" />
     <ClCompile Include="Decoder.cpp" />
     <ClCompile Include="DecodeThread.cpp" />
     <ClCompile Include="main.cpp" />
@@ -118,6 +119,7 @@
     <QtMoc Include="Decoder.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ControlBar.h" />
     <ClInclude Include="DecodeThread.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

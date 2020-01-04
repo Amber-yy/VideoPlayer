@@ -1,5 +1,6 @@
 #include "VideoPlayer.h"
 #include "VideoRender.h"
+#include "ControlBar.h"
 #include "Decoder.h"
 #include "DecodeThread.h"
 #include <QPainter>
@@ -26,6 +27,7 @@ struct VideoPlayer::Data
 	QAudioOutput *audio = nullptr;
 	QIODevice *audioDevice = nullptr;
 	VideoRender *render = nullptr;
+	ControlBar *control = nullptr;
 	Audio currentAudio;
 	int currentAudioIt;
 	double volume = 0.5;
@@ -55,6 +57,8 @@ VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 	data->decoder = new Decoder(this);
 	data->thread = new DecodeThread(this);
 	data->render = new VideoRender(this);
+	data->control = new ControlBar(this);
+	data->render->stackUnder(data->control);
 
 	QAudioFormat audioFormat;
 	audioFormat.setSampleRate(44100);
@@ -199,6 +203,7 @@ void VideoPlayer::OnSubtitleGetted(Subtitle sub)
 void VideoPlayer::resizeEvent(QResizeEvent * e)
 {
 	data->render->setGeometry(rect());
+	data->control->setGeometry(0,height()-85,width(),85);
 	QSize s = data->render->getBestSize(e->size(),data->decoder->getVideoSize());
 	data->decoder->setImageSize(s.width(),s.height());
 }
