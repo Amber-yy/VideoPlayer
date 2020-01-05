@@ -85,6 +85,8 @@ VideoPlayer::~VideoPlayer()
 	delete data;
 }
 
+int t = 0;
+
 void VideoPlayer::OnVideo()
 {
 	if (data->imgs == nullptr || data->imgs->isEmpty())
@@ -216,6 +218,7 @@ void VideoPlayer::StopPlay()
 	}
 
 	data->audios.clear();
+	data->shown = true;
 
 	if (data->timer->isActive())
 	{
