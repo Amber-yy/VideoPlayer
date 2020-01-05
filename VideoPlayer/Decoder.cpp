@@ -60,8 +60,8 @@ struct Decoder::Data
 	int bufSizeA = -1;
 	int width = 640;
 	int height = 480;
-	int curWidth = 640;
-	int curHeight = 480;
+	int curWidth = -1;
+	int curHeight = -1;
 	bool isWorking = true;
 	bool isImage1 = true;
 	bool isSignaled = false;
@@ -275,6 +275,11 @@ void Decoder::decode()
 	avformat_close_input(&data->pFormatCtx);
 	av_frame_free(&data->pFrame);
 	av_free(&data->packet);
+
+	data->images1.clear();
+	data->images2.clear();
+	data->isImage1 = true;
+	data->isSignaled = false;
 }
 
 void Decoder::stop()
@@ -628,9 +633,12 @@ void Decoder::cleanVideo()
 	av_free(data->out_buffer);
 	data->out_buffer = nullptr;
 	avcodec_close(data->pCodecCtx);
+	data->pCodecCtx = nullptr;
 	sws_freeContext(data->img_convert_ctx);
 	data->img_convert_ctx = nullptr;
 	av_frame_free(&data->pFrameRGB);
+	data->curWidth = -1;
+	data->curHeight = -1;
 }
 
 void Decoder::cleanAudio()
@@ -638,14 +646,17 @@ void Decoder::cleanAudio()
 	av_free(data->out_bufferA);
 	data->out_bufferA = nullptr;
 	avcodec_close(data->pCodecCtxA);
+	data->pCodecCtxA = nullptr;
 	swr_close(data->au_convert_ctx);
 	swr_free(&data->au_convert_ctx);
 	av_frame_free(&data->aFrame_ReSample);
 	delete[] data->audioBuffer;
 	data->audioBuffer = nullptr;
+	data->audioBufferSize = 0;
 }
 
 void Decoder::cleanSubTitle()
 {
 	avcodec_close(data->pCodecCtxS);
+	data->pCodecCtxS = nullptr;
 }

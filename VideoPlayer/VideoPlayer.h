@@ -16,6 +16,8 @@ public:
 	void OnFrameGetted();
 	void OnAudioGetted(Audio audio);
 	void OnSubtitleGetted(Subtitle audio);
+	void OpenFile(const QString &file);
+	void StopPlay();
 protected:
 	virtual void resizeEvent(QResizeEvent *e)override;
 	virtual void closeEvent(QCloseEvent *e)override;

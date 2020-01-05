@@ -44,6 +44,11 @@ void VideoRender::addSubtitle(Subtitle title, clock_t cur)
 	}
 }
 
+void VideoRender::stopPlay()
+{
+	data->img.fill(Qt::black);
+}
+
 QSize VideoRender::getBestSize(QSize win,QSize img)
 {
 	int w = win.width();
@@ -116,5 +121,4 @@ void VideoRender::paintEvent(QPaintEvent * e)
 		data->textIni = true;
 	}
 
-	clock_t end = clock();
 }

@@ -8,6 +8,7 @@
 #include <QQueue>
 #include <QDebug>
 #include <QMutex>
+#include <QMessageBox>
 #include <QFile>
 #include <QAudioOutput>
 #include <QResizeEvent>
@@ -30,7 +31,6 @@ struct VideoPlayer::Data
 	ControlBar *control = nullptr;
 	Audio currentAudio;
 	int currentAudioIt;
-	double volume = 0.5;
 	bool shown = true;
 	Video tempVideo;
 	clock_t start;
@@ -53,6 +53,7 @@ static void SubTitleCallBack(void *arg,Subtitle sub)
 
 VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 {
+	resize(640, 480);
 	data = new Data;
 	data->decoder = new Decoder(this);
 	data->thread = new DecodeThread(this);
@@ -71,14 +72,9 @@ VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 	data->audio = new QAudioOutput(audioFormat,this);
 	data->audio->setBufferSize(audioBufferSize);
 
-	QString str = data->decoder->setFile("f:/w.mkv");
-	data->thread->setDecoder(data->decoder);
-	data->thread->start();
-	data->decoder->setAudioCallBack(AudioCallBack,this);
-	data->decoder->setSubtitleCallBack(SubTitleCallBack, this);
-
 	data->timer = new QTimer(this);
 	data->timerA = new QTimer(this);
+	connect(data->control,&ControlBar::sigOpenFile,this,&VideoPlayer::OpenFile);
 	connect(data->timer, &QTimer::timeout, this, &VideoPlayer::OnVideo);
 	connect(data->timerA, &QTimer::timeout, this, &VideoPlayer::OnAudio);
 	connect(data->decoder, &Decoder::frameGetted,this,&VideoPlayer::OnFrameGetted);
@@ -86,14 +82,6 @@ VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 
 VideoPlayer::~VideoPlayer()
 {
-	data->decoder->stop();
-	data->thread->wait();
-
-	for (Audio a : data->audios)
-	{
-		delete[] a.buffer;
-	}
-
 	delete data;
 }
 
@@ -160,7 +148,7 @@ void VideoPlayer::OnAudio()
 	if (data->audio->bytesFree() && data->currentAudio.buffer)
 	{
 		int size = std::min(data->audio->bytesFree(), data->currentAudio.size - data->currentAudioIt);
-		ShiftVolume(data->currentAudio.buffer+ data->currentAudioIt, size, data->volume);
+		ShiftVolume(data->currentAudio.buffer+ data->currentAudioIt, size, data->control->getVolume());
 		data->audioDevice->write(data->currentAudio.buffer + data->currentAudioIt, size);
 		data->currentAudioIt += size;
 		if (data->currentAudioIt >= data->currentAudio.size)
@@ -200,6 +188,46 @@ void VideoPlayer::OnSubtitleGetted(Subtitle sub)
 	data->subtitleMutex.unlock();
 }
 
+void VideoPlayer::OpenFile(const QString & file)
+{
+	StopPlay();
+	QString str = data->decoder->setFile(file);
+	if (str.isEmpty())
+	{
+		data->thread->setDecoder(data->decoder);
+		data->decoder->setAudioCallBack(AudioCallBack, this);
+		data->decoder->setSubtitleCallBack(SubTitleCallBack, this);
+		data->thread->start();
+	}
+	else
+	{
+		QMessageBox::warning(this,u8"´íÎó",str);
+	}
+}
+
+void VideoPlayer::StopPlay()
+{
+	data->decoder->stop();
+	data->thread->wait();
+
+	for (Audio a : data->audios)
+	{
+		delete[] a.buffer;
+	}
+
+	data->audios.clear();
+
+	if (data->timer->isActive())
+	{
+		data->timer->stop();
+		data->timerA->stop();
+		QThread::msleep(200);
+	}
+
+	data->audio->stop();
+	data->render->stopPlay();
+}
+
 void VideoPlayer::resizeEvent(QResizeEvent * e)
 {
 	data->render->setGeometry(rect());
@@ -210,8 +238,6 @@ void VideoPlayer::resizeEvent(QResizeEvent * e)
 
 void VideoPlayer::closeEvent(QCloseEvent * e)
 {
-	data->timer->stop();
-	data->timerA->stop();
-	QThread::msleep(100);
+	StopPlay();
 	QWidget::closeEvent(e);
 }

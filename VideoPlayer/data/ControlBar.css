@@ -1,0 +1,147 @@
+QSlider::groove:horizontal
+{
+	background: grey; 
+	height:2px;
+	left:8px;
+	right:8px;
+}
+
+QSlider::handle:horizontal
+{
+	background-color:white;
+	margin:-3px -4px;
+	border-radius:3px;
+}
+
+QSlider::sub-page:horizontal 
+{
+	background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #00FF00,stop:1 #c4c4c4);
+	background: qlineargradient(x1: 0, y1: 0.2, x2: 1, y2: 1, stop: 0 #bbf, stop: 1 #55f);  
+}
+
+QSlider::add-page:horizontal 
+{
+	background: grey;
+}
+
+QPushButton#VolumeBt
+{
+	width:29;
+	height:26;
+	border-image:url("data/icon/volNormal.png");
+}
+
+QPushButton#SearchBt
+{
+	width:31;
+	height:30;
+	border-image:url("data/icon/searchNormal.png");
+}
+
+QPushButton#SearchBt:hover
+{
+	width:31;
+	height:30;
+	border-image:url("data/icon/searchHover.png");
+}
+
+QPushButton#SearchBt:pressed
+{
+	width:31;
+	height:30;
+	border-image:url("data/icon/searchPress.png");
+}
+
+QPushButton#LeftBt
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/leftNormal.png");
+}
+
+QPushButton#LeftBt:hover
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/leftHover.png");
+}
+
+QPushButton#LeftBt:pressed
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/leftPress.png");
+}
+
+QPushButton#PlayBt
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/playNormal.png");
+}
+
+QPushButton#PlayBt:hover
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/playHover.png");
+}
+
+QPushButton#PlayBt:pressed
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/playPress.png");
+}
+
+QPushButton#PauseBt
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/pauseNormal.png");
+}
+
+QPushButton#PauseBt:hover
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/pauseHover.png");
+}
+
+QPushButton#PauseBt:pressed
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/pausePress.png");
+}
+
+QPushButton#RightBt
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/rightNormal.png");
+}
+
+QPushButton#RightBt:hover
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/rightHover.png");
+}
+
+QPushButton#RightBt:pressed
+{
+	width:49;
+	height:49;
+	border-image:url("data/icon/rightPress.png");
+}
+
+
+
+
+
+
+
+
+
+

@@ -119,7 +119,7 @@
     <QtMoc Include="Decoder.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ControlBar.h" />
+    <QtMoc Include="ControlBar.h" />
     <ClInclude Include="DecodeThread.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
