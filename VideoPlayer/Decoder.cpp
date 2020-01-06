@@ -67,12 +67,13 @@ struct Decoder::Data
 	bool isSignaled = false;
 	bool isStop = false;
 	QVector<int> audios;
-	QVector<QString> audioInfo;
+	QStringList audioInfo;
 	QVector<int> subtitles;
-	QVector<QString> subtitleInfo;
+	QStringList subtitleInfo;
 	QQueue<Video> images1;
 	QQueue<Video> images2;
 	QMutex sizeMutex;
+	QSize videoSize;
 };
 
 Decoder::Decoder(QObject *parent):QObject(parent)
@@ -106,6 +107,11 @@ QString Decoder::setFile(const QString & file)
 	}
 
 	data->videoindex = -1;
+	data->audioindex = -1;
+	data->subtitleindex = -1;
+	data->aFrame_ReSample = nullptr;
+	data->au_convert_ctx = nullptr;
+	data->videoSize = { 640,480 };
 	data->audios.clear();
 	data->subtitles.clear();
 	data->audioInfo.clear();
@@ -140,10 +146,11 @@ QString Decoder::setFile(const QString & file)
 		}
 	}
 
-	openVideoDecodec(data->videoindex);
+	QString str = openVideoDecodec(data->videoindex);
+
 	if (data->audios.size())
 	{
-		openAudioDecodec(data->audios[0]);
+		str += openAudioDecodec(data->audios[0]);
 	}
 	if (data->subtitles.size())
 	{
@@ -153,7 +160,7 @@ QString Decoder::setFile(const QString & file)
 	data->pFrame = av_frame_alloc();
 	data->packet = (AVPacket *)av_malloc(sizeof(AVPacket));
 
-	return QString();
+	return str;
 }
 
 QQueue<Video>* Decoder::getFrame()
@@ -205,12 +212,7 @@ QVector<int> Decoder::getAudio()
 
 QSize Decoder::getVideoSize()
 {
-	if (data->videoindex == -1)
-	{
-		return QSize(640,480);
-	}
-
-	return QSize(data->pCodecCtx->width, data->pCodecCtx->height);
+	return data->videoSize;
 }
 
 static void cleanUp(void *info)
@@ -285,6 +287,16 @@ void Decoder::decode()
 void Decoder::stop()
 {
 	data->isStop = true;
+}
+
+QStringList Decoder::getAudios()
+{
+	return data->audioInfo;
+}
+
+QStringList Decoder::getSubtitles()
+{
+	return data->subtitleInfo;
 }
 
 bool Decoder::decodeVideo()
@@ -564,7 +576,7 @@ QString Decoder::openVideoDecodec(int index)
 		
 		data->bufSize = av_image_get_buffer_size(fmt, MAX_WIDTH, MAX_HEIGHT, 1);
 		data->out_buffer = (unsigned char *)av_malloc(data->bufSize);
-
+		data->videoSize = { data->pCodecCtx->width, data->pCodecCtx->height };
 		setImageSize(data->pCodecCtx->width, data->pCodecCtx->height);
 	}
 
@@ -647,7 +659,10 @@ void Decoder::cleanAudio()
 	data->out_bufferA = nullptr;
 	avcodec_close(data->pCodecCtxA);
 	data->pCodecCtxA = nullptr;
-	swr_close(data->au_convert_ctx);
+	if (data->au_convert_ctx != nullptr)
+	{
+		swr_close(data->au_convert_ctx);
+	}
 	swr_free(&data->au_convert_ctx);
 	av_frame_free(&data->aFrame_ReSample);
 	delete[] data->audioBuffer;

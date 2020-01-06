@@ -166,6 +166,8 @@ void VideoPlayer::OnFrameGetted()
 	data->timer->start(10);
 	data->timerA->start(5);
 	data->start = clock();
+	data->control->setAudios(data->decoder->getAudios());
+	data->control->setSubtitles(data->decoder->getSubtitles());
 	data->audioDevice = data->audio->start();
 	data->currentAudio = { nullptr,0 };
 	resize(data->decoder->getVideoSize());

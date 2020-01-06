@@ -4,6 +4,7 @@
 #include <QComboBox>
 #include <QSlider>
 #include <QFileDialog>
+#include <QListView>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QPainter>
@@ -78,7 +79,9 @@ ControlBar::ControlBar(QWidget *parent) :QWidget(parent)
 	data->sounds = new QComboBox;
 	data->subtitles = new QComboBox;
 	data->sounds->setFixedWidth(100);
+	data->sounds->setView(new QListView);
 	data->subtitles->setFixedWidth(100);
+	data->subtitles->setView(new QListView);
 	comboLayout->addWidget(data->sounds);
 	comboLayout->addWidget(data->subtitles);
 	comboLayout->addSpacing(8);
@@ -106,6 +109,16 @@ double ControlBar::getVolume()
 {
 	double v = data->volume->value();
 	return v/100;
+}
+
+void ControlBar::setAudios(QStringList audios)
+{
+	data->sounds->addItems(audios);
+}
+
+void ControlBar::setSubtitles(QStringList subtitles)
+{
+	data->subtitles->addItems(subtitles);
 }
 
 void ControlBar::onOpenFile()

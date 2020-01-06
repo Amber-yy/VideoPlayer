@@ -44,6 +44,8 @@ public:
 	void switchWorkState(bool work);
 	void decode();
 	void stop();
+	QStringList getAudios();
+	QStringList getSubtitles();
 protected:
 	bool decodeVideo();
 	bool decodeAudio();

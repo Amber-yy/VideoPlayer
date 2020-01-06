@@ -12,6 +12,8 @@ public:
 	~ControlBar();
 	void setDuration(int second);
 	double getVolume();
+	void setAudios(QStringList audios);
+	void setSubtitles(QStringList subtitles);
 protected:
 	void onOpenFile();
 	virtual void paintEvent(QPaintEvent *e) override;
