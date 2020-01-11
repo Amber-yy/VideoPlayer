@@ -38,6 +38,7 @@ public:
 	QVector<int> getAudio();
 	QVector<int> getSubtitle();
 	QSize getVideoSize();
+	long long getDuration();
 	int getVideo();
 	void setImageSize(int w, int h);
 	void setAudioCallBack(void (*callBack)(void *,Audio),void *arg);

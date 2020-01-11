@@ -46,6 +46,9 @@
     <ClCompile Include="ControlBar.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DurationSlider.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="VideoPlayer.h">
@@ -73,6 +76,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DecodeThread.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DurationSlider.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

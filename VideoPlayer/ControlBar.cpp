@@ -1,5 +1,6 @@
 #include "ControlBar.h"
 #include "VideoPlayer.h"
+#include "DurationSlider.h"
 #include <QPushButton>
 #include <QComboBox>
 #include <QSlider>
@@ -7,8 +8,11 @@
 #include <QListView>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QMouseEvent>
+#include <QLabel>
 #include <QPainter>
 #include <QFile>
+#include <QDebug>
 
 struct ControlBar::Data
 {
@@ -21,7 +25,7 @@ struct ControlBar::Data
 	QPushButton *volumeBt;
 	QComboBox *sounds;
 	QComboBox *subtitles;
-	QSlider *duration;
+	DurationSlider *duration;
 	QSlider *volume;
 	int audioIndex = -1;
 	int subtitleIndex = -1;
@@ -32,9 +36,10 @@ ControlBar::ControlBar(QWidget *parent) :QWidget(parent)
 	data = new Data;
 	data->player = dynamic_cast<VideoPlayer *>(parent);
 	QVBoxLayout *mainLayout = new QVBoxLayout(this);
+	mainLayout->setSpacing(0);
 	mainLayout->setContentsMargins(0, 0, 0, 0);
 	setLayout(mainLayout);
-	data->duration = new QSlider(Qt::Horizontal);
+	data->duration = new DurationSlider;
 	mainLayout->addWidget(data->duration);
 
 	QHBoxLayout *controlLayout = new QHBoxLayout;
@@ -103,7 +108,6 @@ ControlBar::ControlBar(QWidget *parent) :QWidget(parent)
 	{
 		setStyleSheet(file.readAll());
 	}
-
 }
 
 ControlBar::~ControlBar()
@@ -140,6 +144,11 @@ void ControlBar::startPlay()
 {
 	data->pause->setVisible(true);
 	data->play->setVisible(false);
+}
+
+void ControlBar::setProgress(int second)
+{
+	data->duration->setValue(second);
 }
 
 void ControlBar::onPauseState()

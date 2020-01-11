@@ -168,13 +168,20 @@ void VideoPlayer::OnAudio()
 		return;
 	}
 
+	bool isAudioOnly = (data->decoder->getVideo() != 0);
+	if (isAudioOnly)
+	{
+		clock_t cur = clock() - data->start;
+		data->control->setProgress(cur/1000);
+	}
+
 	if (data->currentAudio.buffer == nullptr && data->audios.size())
 	{
 		data->audioMutex.lock();
 		data->currentAudio = data->audios.takeFirst();
 		data->audioMutex.unlock();
 		data->currentAudioIt = 0;
-		if (data->decoder->getVideo() != 0 && data->audios.size() < maxAudioSize/2)
+		if (isAudioOnly && data->audios.size() < maxAudioSize/2)
 		{
 			data->decoder->switchWorkState(true);
 		}
@@ -212,6 +219,7 @@ void VideoPlayer::OnFrameGetted()
 	data->control->setSubtitles(data->decoder->getSubtitles());
 	data->audioDevice = data->audio->start();
 	data->currentAudio = { nullptr,0 };
+	data->control->setDuration(data->decoder->getDuration());
 	data->control->startPlay();
 
 	QRect screenRect = QApplication::desktop()->screenGeometry();

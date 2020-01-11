@@ -98,6 +98,7 @@
     <ClCompile Include="ControlBar.cpp" />
     <ClCompile Include="Decoder.cpp" />
     <ClCompile Include="DecodeThread.cpp" />
+    <ClCompile Include="DurationSlider.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="VideoPlayer.cpp" />
     <ClCompile Include="VideoRender.cpp" />
@@ -119,6 +120,7 @@
     <QtMoc Include="Decoder.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DurationSlider.h" />
     <QtMoc Include="ControlBar.h" />
     <ClInclude Include="DecodeThread.h" />
   </ItemGroup>

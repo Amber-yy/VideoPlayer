@@ -100,7 +100,7 @@ QString Decoder::setFile(const QString & file)
 
 	if (avformat_open_input(&data->pFormatCtx, file.toStdString().c_str(), nullptr, nullptr) != 0)
 	{
-		return QString(u8"无法打开文件："+file);
+		return QString(u8"无法读取媒体信息："+file);
 	}
 
 	if (avformat_find_stream_info(data->pFormatCtx, nullptr) < 0)
@@ -157,6 +157,11 @@ QString Decoder::setFile(const QString & file)
 	if (data->subtitles.size())
 	{
 		openSubTitleDecodec(data->subtitles[0]);
+	}
+
+	if (data->audioindex == -1 && data->audios.isEmpty() && data->subtitles.isEmpty())
+	{
+		return QString(u8"没有任何媒体信息");
 	}
 
 	data->pFrame = av_frame_alloc();
@@ -220,6 +225,11 @@ QVector<int> Decoder::getSubtitle()
 QSize Decoder::getVideoSize()
 {
 	return data->videoSize;
+}
+
+long long Decoder::getDuration()
+{
+	return data->pFormatCtx->duration / AV_TIME_BASE;
 }
 
 static void cleanUp(void *info)
