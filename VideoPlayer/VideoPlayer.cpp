@@ -212,6 +212,7 @@ void VideoPlayer::OnFrameGetted()
 	data->control->setSubtitles(data->decoder->getSubtitles());
 	data->audioDevice = data->audio->start();
 	data->currentAudio = { nullptr,0 };
+	data->control->startPlay();
 
 	QRect screenRect = QApplication::desktop()->screenGeometry();
 	QSize imgSize = data->decoder->getVideoSize();
@@ -286,6 +287,7 @@ void VideoPlayer::StopPlay()
 
 	data->audio->stop();
 	data->render->stopPlay();
+	data->control->show();
 }
 
 void VideoPlayer::switchAudio(int index)

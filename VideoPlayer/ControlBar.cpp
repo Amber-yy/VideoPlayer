@@ -136,6 +136,12 @@ void ControlBar::setSubtitles(QStringList subtitles)
 	data->subtitles->addItems(subtitles);
 }
 
+void ControlBar::startPlay()
+{
+	data->pause->setVisible(true);
+	data->play->setVisible(false);
+}
+
 void ControlBar::onPauseState()
 {
 	if (data->player->isPlaying())

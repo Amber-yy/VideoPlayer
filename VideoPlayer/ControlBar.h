@@ -17,6 +17,7 @@ public:
 	double getVolume();
 	void setAudios(QStringList audios);
 	void setSubtitles(QStringList subtitles);
+	void startPlay();
 protected:
 	void onPauseState();
 	void onAudioChange(int index);
