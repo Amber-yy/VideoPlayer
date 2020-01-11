@@ -7,6 +7,9 @@ class ControlBar:public QWidget
 	Q_OBJECT
 signals:
 	void sigOpenFile(QString &);
+	void sigSwitchAudio(int);
+	void sigSwitchSubtitle(int);
+	void sigPauseState(bool);
 public:
 	ControlBar(QWidget *parent);
 	~ControlBar();
@@ -15,6 +18,9 @@ public:
 	void setAudios(QStringList audios);
 	void setSubtitles(QStringList subtitles);
 protected:
+	void onPauseState();
+	void onAudioChange(int index);
+	void onSubtitleChange(int index);
 	void onOpenFile();
 	virtual void paintEvent(QPaintEvent *e) override;
 protected:

@@ -73,6 +73,8 @@ struct Decoder::Data
 	QQueue<Video> images1;
 	QQueue<Video> images2;
 	QMutex sizeMutex;
+	QMutex audioMutex;
+	QMutex subtitleMutex;
 	QSize videoSize;
 };
 
@@ -131,7 +133,7 @@ QString Decoder::setFile(const QString & file)
 			if (t)
 			{
 				QString str(t->value);
-				data->audioInfo.push_back(str);
+				data->audioInfo.push_back(u8"ÒôÆµ: "+str);
 			}
 		}
 		else if (t == AVMEDIA_TYPE_SUBTITLE)
@@ -141,7 +143,7 @@ QString Decoder::setFile(const QString & file)
 			if (t)
 			{
 				QString str(t->value);
-				data->subtitleInfo.push_back(str);
+				data->subtitleInfo.push_back(u8"×ÖÄ»: " + str);
 			}
 		}
 	}
@@ -208,6 +210,11 @@ void Decoder::setSubtitleCallBack(void(*callBack)(void *, Subtitle), void * arg)
 QVector<int> Decoder::getAudio()
 {
 	return data->audios;
+}
+
+QVector<int> Decoder::getSubtitle()
+{
+	return data->subtitles;
 }
 
 QSize Decoder::getVideoSize()
@@ -389,6 +396,13 @@ bool Decoder::decodeVideo()
 
 bool Decoder::decodeAudio()
 {
+	QMutexLocker locker(&data->audioMutex);
+
+	if (data->packet->stream_index != data->audioindex)
+	{
+		return false;
+	}
+
 	int got_picture;
 
 	int ret = avcodec_decode_audio4(data->pCodecCtxA, data->pFrame, &got_picture, data->packet);
@@ -525,6 +539,13 @@ static Subtitle parseAss(char *ass)
 
 bool Decoder::decodeSubtitle()
 {
+	QMutexLocker locker(&data->subtitleMutex);
+
+	if (data->packet->stream_index != data->subtitleindex)
+	{
+		return false;
+	}
+
 	int got_picture;
 	AVSubtitle subtitle;
 	int ret = avcodec_decode_subtitle2(data->pCodecCtxS, &subtitle, &got_picture, data->packet);
@@ -585,6 +606,8 @@ QString Decoder::openVideoDecodec(int index)
 
 QString Decoder::openAudioDecodec(int index)
 {
+	QMutexLocker locker(&data->audioMutex);
+	cleanAudio();
 	data->audioindex = index;
 
 	if (data->audioindex != -1)
@@ -618,6 +641,9 @@ QString Decoder::openAudioDecodec(int index)
 
 QString Decoder::openSubTitleDecodec(int index)
 {
+	QMutexLocker lock(&data->subtitleMutex);
+
+	cleanSubTitle();
 	data->subtitleindex = index;
 
 	if (data->subtitleindex != -1)

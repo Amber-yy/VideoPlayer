@@ -47,6 +47,7 @@ void VideoRender::addSubtitle(Subtitle title, clock_t cur)
 void VideoRender::stopPlay()
 {
 	data->img.fill(Qt::black);
+	data->currentSubtitles.clear();
 }
 
 QSize VideoRender::getBestSize(QSize win,QSize img)
@@ -113,7 +114,7 @@ void VideoRender::paintEvent(QPaintEvent * e)
 
 	if (!data->textIni)
 	{
-		painter.setPen(Qt::white);
+		painter.setPen(Qt::black);
 		QFont font(u8"Î¢ÈíÑÅºÚ");
 		font.setPixelSize(22);
 		painter.setFont(font);

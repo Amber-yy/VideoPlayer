@@ -11,19 +11,23 @@
 #include <QMessageBox>
 #include <QFile>
 #include <QAudioOutput>
+#include <QApplication>
+#include <QDesktopWidget>
 #include <QResizeEvent>
+#include <QMouseEvent>
 
 extern void ShiftVolume(char* buf, int size, double vol);
 
 const int audioBufferSize = 1024 * 1024 * 6;
 const int maxAudioSize = 30;
+const int controlHide = 5000;
 
 struct VideoPlayer::Data
 {
 	Decoder *decoder;
 	DecodeThread *thread;
-	QTimer *timer;
-	QTimer *timerA;
+	QTimer *timer = nullptr;
+	QTimer *timerA = nullptr;
 	QQueue<Video> *imgs = nullptr;
 	QAudioOutput *audio = nullptr;
 	QIODevice *audioDevice = nullptr;
@@ -32,8 +36,11 @@ struct VideoPlayer::Data
 	Audio currentAudio;
 	int currentAudioIt;
 	bool shown = true;
+	bool pause = false;
 	Video tempVideo;
 	clock_t start;
+	clock_t pauseTime;
+	clock_t controlActive = 0;
 	QQueue<Audio> audios;
 	QQueue<Subtitle> subtitles;
 	QList<Subtitle> currentSubtitles;
@@ -54,6 +61,7 @@ static void SubTitleCallBack(void *arg,Subtitle sub)
 VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 {
 	resize(640, 480);
+
 	data = new Data;
 	data->decoder = new Decoder(this);
 	data->thread = new DecodeThread(this);
@@ -78,6 +86,14 @@ VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 	connect(data->timer, &QTimer::timeout, this, &VideoPlayer::OnVideo);
 	connect(data->timerA, &QTimer::timeout, this, &VideoPlayer::OnAudio);
 	connect(data->decoder, &Decoder::frameGetted,this,&VideoPlayer::OnFrameGetted);
+	connect(data->control, &ControlBar::sigSwitchAudio, this, &VideoPlayer::switchAudio);
+	connect(data->control, &ControlBar::sigSwitchSubtitle, this, &VideoPlayer::switchSubtitle);
+	connect(data->control, &ControlBar::sigPauseState, this, &VideoPlayer::setPause);
+
+	data->control->installEventFilter(this);
+	data->control->setMouseTracking(true);
+	data->render->installEventFilter(this);
+	data->render->setMouseTracking(true);
 }
 
 VideoPlayer::~VideoPlayer()
@@ -85,16 +101,24 @@ VideoPlayer::~VideoPlayer()
 	delete data;
 }
 
-int t = 0;
-
 void VideoPlayer::OnVideo()
 {
+	if (data->pause)
+	{
+		return;
+	}
+
 	if (data->imgs == nullptr || data->imgs->isEmpty())
 	{
 		data->imgs = data->decoder->getFrame();
 	}
 
 	clock_t cur = clock() - data->start;
+
+	if (clock() - data->controlActive > controlHide)
+	{
+		data->control->hide();
+	}
 
 	if (data->subtitles.size() > 0)
 	{
@@ -130,11 +154,20 @@ void VideoPlayer::OnVideo()
 			data->shown = false;
 		}
 	}
+	else if(data->thread->isFinished())
+	{
+		StopPlay();
+	}
 
 }
 
 void VideoPlayer::OnAudio()
 {
+	if (data->pause)
+	{
+		return;
+	}
+
 	if (data->currentAudio.buffer == nullptr && data->audios.size())
 	{
 		data->audioMutex.lock();
@@ -159,18 +192,40 @@ void VideoPlayer::OnAudio()
 			data->currentAudio.buffer = nullptr;
 		}
 	}
+	else if (data->thread->isFinished())
+	{
+		StopPlay();
+	}
+
 }
 
 void VideoPlayer::OnFrameGetted()
 {
-	data->timer->start(10);
+	if (data->decoder->getVideo() != -1)
+	{
+		data->timer->start(10);
+	}
+
 	data->timerA->start(5);
 	data->start = clock();
 	data->control->setAudios(data->decoder->getAudios());
 	data->control->setSubtitles(data->decoder->getSubtitles());
 	data->audioDevice = data->audio->start();
 	data->currentAudio = { nullptr,0 };
-	resize(data->decoder->getVideoSize());
+
+	QRect screenRect = QApplication::desktop()->screenGeometry();
+	QSize imgSize = data->decoder->getVideoSize();
+
+	if (imgSize.width() > screenRect.width() / 2 || imgSize.height() > screenRect.height() / 2)
+	{
+		int width = screenRect.width() / 2;
+		int height = ((double)imgSize.height() / imgSize.width()) * width;
+		imgSize = QSize(width,height);
+	}
+
+	resize(imgSize);
+
+	data->pause = false;
 }
 
 void VideoPlayer::OnAudioGetted(Audio audio)
@@ -178,7 +233,7 @@ void VideoPlayer::OnAudioGetted(Audio audio)
 	data->audioMutex.lock();
 	data->audios.push_back(audio);
 	data->audioMutex.unlock();
-	
+
 	if (data->decoder->getVideo()!=0&&data->audios.size() >= maxAudioSize)
 	{
 		data->decoder->switchWorkState(false);
@@ -222,21 +277,80 @@ void VideoPlayer::StopPlay()
 	data->audios.clear();
 	data->shown = true;
 
-	if (data->timer->isActive())
+	if (data->timer->isActive() || data->timerA->isActive())
 	{
 		data->timer->stop();
 		data->timerA->stop();
-		QThread::msleep(200);
+		QThread::msleep(500);
 	}
 
 	data->audio->stop();
 	data->render->stopPlay();
 }
 
+void VideoPlayer::switchAudio(int index)
+{
+	data->decoder->openAudioDecodec(data->decoder->getAudio()[index]);
+}
+
+void VideoPlayer::switchSubtitle(int index)
+{
+	data->decoder->openSubTitleDecodec(data->decoder->getSubtitle()[index]);
+}
+
+void VideoPlayer::setPause(bool p)
+{
+	data->pause = p;
+	if (data->pause)
+	{
+		data->pauseTime = clock();
+	}
+	else
+	{
+		data->start += clock() - data->pauseTime;
+	}
+
+}
+
+bool VideoPlayer::isPlaying()
+{
+	return data->timer->isActive()||data->timerA->isActive();
+}
+
+QRect VideoPlayer::getControlRect()
+{
+	return QRect(0, height() - 85, width(), 85);
+}
+
+bool VideoPlayer::eventFilter(QObject * obj, QEvent * e)
+{
+	if (e->type() != QEvent::MouseMove)
+	{
+		return QWidget::eventFilter(obj, e);
+	}
+
+	if (obj == data->render)
+	{
+		QPoint pt = dynamic_cast<QMouseEvent *>(e)->pos();
+		if (getControlRect().contains(pt))
+		{
+			data->controlActive = clock();
+			data->control->show();
+		}
+	}
+	else if (obj == data->control)
+	{
+		data->controlActive = clock();
+		return false;
+	}
+
+	return QWidget::eventFilter(obj, e);
+}
+
 void VideoPlayer::resizeEvent(QResizeEvent * e)
 {
 	data->render->setGeometry(rect());
-	data->control->setGeometry(0,height()-85,width(),85);
+	data->control->setGeometry(getControlRect());
 	QSize s = data->render->getBestSize(e->size(),data->decoder->getVideoSize());
 	data->decoder->setImageSize(s.width(),s.height());
 }

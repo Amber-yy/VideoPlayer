@@ -36,6 +36,7 @@ public:
 	QString setFile(const QString &file);
 	QQueue<Video>* getFrame();
 	QVector<int> getAudio();
+	QVector<int> getSubtitle();
 	QSize getVideoSize();
 	int getVideo();
 	void setImageSize(int w, int h);
@@ -46,13 +47,13 @@ public:
 	void stop();
 	QStringList getAudios();
 	QStringList getSubtitles();
+	QString openAudioDecodec(int index);
+	QString openSubTitleDecodec(int index);
 protected:
 	bool decodeVideo();
 	bool decodeAudio();
 	bool decodeSubtitle();
 	QString openVideoDecodec(int index);
-	QString openAudioDecodec(int index);
-	QString openSubTitleDecodec(int index);
 	void cleanVideo();
 	void cleanAudio();
 	void cleanSubTitle();

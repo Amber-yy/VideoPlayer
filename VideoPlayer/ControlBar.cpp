@@ -1,5 +1,5 @@
 #include "ControlBar.h"
-
+#include "VideoPlayer.h"
 #include <QPushButton>
 #include <QComboBox>
 #include <QSlider>
@@ -12,6 +12,7 @@
 
 struct ControlBar::Data
 {
+	VideoPlayer *player;
 	QPushButton *left;
 	QPushButton *right;
 	QPushButton *pause;
@@ -22,11 +23,14 @@ struct ControlBar::Data
 	QComboBox *subtitles;
 	QSlider *duration;
 	QSlider *volume;
+	int audioIndex = -1;
+	int subtitleIndex = -1;
 };
 
 ControlBar::ControlBar(QWidget *parent) :QWidget(parent)
 {
 	data = new Data;
+	data->player = dynamic_cast<VideoPlayer *>(parent);
 	QVBoxLayout *mainLayout = new QVBoxLayout(this);
 	mainLayout->setContentsMargins(0, 0, 0, 0);
 	setLayout(mainLayout);
@@ -78,13 +82,20 @@ ControlBar::ControlBar(QWidget *parent) :QWidget(parent)
 	controlLayout->addLayout(comboLayout);
 	data->sounds = new QComboBox;
 	data->subtitles = new QComboBox;
-	data->sounds->setFixedWidth(100);
+	data->sounds->setFixedWidth(120);
 	data->sounds->setView(new QListView);
-	data->subtitles->setFixedWidth(100);
+	data->subtitles->setFixedWidth(120);
 	data->subtitles->setView(new QListView);
 	comboLayout->addWidget(data->sounds);
 	comboLayout->addWidget(data->subtitles);
 	comboLayout->addSpacing(8);
+
+	void (QComboBox::*ptr)(int) = &QComboBox::activated;
+
+	connect(data->sounds, ptr,this,&ControlBar::onAudioChange);
+	connect(data->subtitles, ptr, this, &ControlBar::onSubtitleChange);
+	connect(data->pause,&QPushButton::clicked,this,&ControlBar::onPauseState);
+	connect(data->play, &QPushButton::clicked, this, &ControlBar::onPauseState);
 
 	QFile file("data/ControlBar.css");
 
@@ -113,12 +124,47 @@ double ControlBar::getVolume()
 
 void ControlBar::setAudios(QStringList audios)
 {
+	data->sounds->clear();
+	data->audioIndex = 0;
 	data->sounds->addItems(audios);
 }
 
 void ControlBar::setSubtitles(QStringList subtitles)
 {
+	data->subtitles->clear();
+	data->subtitleIndex = 0;
 	data->subtitles->addItems(subtitles);
+}
+
+void ControlBar::onPauseState()
+{
+	if (data->player->isPlaying())
+	{
+		bool pause = data->pause->isVisible();
+
+		data->pause->setVisible(!pause);
+		data->play->setVisible(pause);
+
+		emit sigPauseState(pause);
+	}
+}
+
+void ControlBar::onAudioChange(int index)
+{
+	if (index != data->audioIndex)
+	{
+		data->audioIndex = index;
+		emit sigSwitchAudio(index);
+	}
+}
+
+void ControlBar::onSubtitleChange(int index)
+{
+	if (index != data->subtitleIndex)
+	{
+		data->subtitleIndex = index;
+		emit sigSwitchSubtitle(index);
+	}
 }
 
 void ControlBar::onOpenFile()
