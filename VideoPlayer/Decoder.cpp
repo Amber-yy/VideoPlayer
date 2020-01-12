@@ -44,7 +44,6 @@ struct Decoder::Data
 	AVFrame *aFrame_ReSample = nullptr;
 	SwsContext *img_convert_ctx = nullptr;
 	SwrContext *au_convert_ctx = nullptr;
-	AVPacket *packet = nullptr;
 	void(*audioCallBack)(void *,Audio) = nullptr;
 	void *audioArg = nullptr;
 	void(*subtitleCallBack)(void *, Subtitle) = nullptr;
@@ -62,10 +61,12 @@ struct Decoder::Data
 	int height = 480;
 	int curWidth = -1;
 	int curHeight = -1;
+	int seekPos = -1;
 	bool isWorking = true;
 	bool isImage1 = true;
 	bool isSignaled = false;
 	bool isStop = false;
+	bool isSeeked = false;
 	QVector<int> audios;
 	QStringList audioInfo;
 	QVector<int> subtitles;
@@ -75,6 +76,7 @@ struct Decoder::Data
 	QMutex sizeMutex;
 	QMutex audioMutex;
 	QMutex subtitleMutex;
+	QMutex seekMutex;
 	QSize videoSize;
 };
 
@@ -165,7 +167,6 @@ QString Decoder::setFile(const QString & file)
 	}
 
 	data->pFrame = av_frame_alloc();
-	data->packet = (AVPacket *)av_malloc(sizeof(AVPacket));
 
 	return str;
 }
@@ -241,6 +242,8 @@ void Decoder::decode()
 {
 	data->isWorking = true;
 	data->isStop = false;
+	data->seekPos = -1;
+	data->isSeeked = false;
 
 	while (true)
 	{
@@ -255,25 +258,55 @@ void Decoder::decode()
 			continue;
 		}
 
+		if (data->seekPos != -1)
+		{
+			int index = -1;
+			if (data->videoindex == 0)
+			{
+				index = 0;
+			}
+			else if (data->audioindex != -1)
+			{
+				index = data->audioindex;
+			}
+			av_seek_frame(data->pFormatCtx, index, data->seekPos/av_q2d(data->pFormatCtx->streams[index]->time_base), AVSEEK_FLAG_BACKWARD);
+			if (data->pCodecCtx)
+				avcodec_flush_buffers(data->pCodecCtx);
+			if (data->pCodecCtxA)
+				avcodec_flush_buffers(data->pCodecCtxA);
+			if (data->pCodecCtxS)
+				avcodec_flush_buffers(data->pCodecCtxS);
+			data->seekPos = -1;
+			data->isSeeked = true;
+		}
+
 		int readed = -1;
 
-		while ((readed = av_read_frame(data->pFormatCtx, data->packet)) >= 0)
+		while (true)
 		{
-			bool ok = false;
-			if (data->packet->stream_index == data->videoindex)
+			AVPacket packet;
+			readed = av_read_frame(data->pFormatCtx, &packet);
+
+			if (readed < 0)
 			{
-				ok = decodeVideo();
-			}
-			else if (data->packet->stream_index == data->audioindex)
-			{
-				ok = decodeAudio();
-			}
-			else if (data->packet->stream_index == data->subtitleindex)
-			{
-				ok = decodeSubtitle();
+				break;
 			}
 
-			av_free_packet(data->packet);
+			bool ok = false;
+			if (packet.stream_index == data->videoindex)
+			{
+				ok = decodeVideo(packet);
+			}
+			else if (packet.stream_index == data->audioindex)
+			{
+				ok = decodeAudio(packet);
+			}
+			else if (packet.stream_index == data->subtitleindex)
+			{
+				ok = decodeSubtitle(packet);
+			}
+
+			av_packet_unref(&packet);
 
 			if (ok)
 			{
@@ -293,7 +326,6 @@ void Decoder::decode()
 
 	avformat_close_input(&data->pFormatCtx);
 	av_frame_free(&data->pFrame);
-	av_free(&data->packet);
 
 	data->images1.clear();
 	data->images2.clear();
@@ -306,6 +338,11 @@ void Decoder::stop()
 	data->isStop = true;
 }
 
+void Decoder::seek(int pos)
+{
+	data->seekPos = pos;
+}
+
 QStringList Decoder::getAudios()
 {
 	return data->audioInfo;
@@ -316,20 +353,21 @@ QStringList Decoder::getSubtitles()
 	return data->subtitleInfo;
 }
 
-bool Decoder::decodeVideo()
+bool Decoder::decodeVideo(AVPacket &packet)
 {
 	int got_picture;
 
-	int ret = avcodec_decode_video2(data->pCodecCtx, data->pFrame, &got_picture, data->packet);
-	
-	if (ret < 0)
+	int ret = avcodec_send_packet(data->pCodecCtx, &packet);
+
+
+	if (ret != 0)
 	{
 		return false;
 	}
 
 	int imgSize = 0;
 
-	if (got_picture != 0)
+	while (avcodec_receive_frame(data->pCodecCtx, data->pFrame) == 0)
 	{
 		if (data->width != data->curWidth || data->height != data->curHeight)
 		{
@@ -347,82 +385,82 @@ bool Decoder::decodeVideo()
 		imgSize = av_image_get_buffer_size(fmt, data->curWidth, data->curHeight, 1);
 		sws_scale(data->img_convert_ctx, (const unsigned char* const*)data->pFrame->data, data->pFrame->linesize, 0, data->pCodecCtx->height,
 			data->pFrameRGB->data, data->pFrameRGB->linesize);
-	}
-	else
-	{
-		return false;
-	}
 
-	QQueue<Video>* imgs;
-	if (data->isImage1)
-	{
-		imgs = &data->images1;
-	}
-	else
-	{
-		imgs = &data->images2;
-	}
-
-	unsigned char *temp = (unsigned char *)av_malloc(imgSize);
-	memcpy(temp, data->out_buffer, imgSize);
-	QImage img = std::move(QImage((uchar *)temp, data->curWidth, data->curHeight, QImage::Format_RGB32, cleanUp, temp));
-
-	double video_pts = 0;
-
-	if (data->packet->dts == AV_NOPTS_VALUE && data->pFrame->opaque&& *(uint64_t*)data->pFrame->opaque != AV_NOPTS_VALUE)
-	{
-		video_pts = *(uint64_t *)data->pFrame->opaque;
-	}
-	else if (data->packet->dts != AV_NOPTS_VALUE)
-	{
-		video_pts = data->packet->dts;
-	}
-	else
-	{
-		video_pts = 0;
-	}
-
-	video_pts *= av_q2d(data->pFormatCtx->streams[data->videoindex]->time_base);
-	video_pts *= 1000;
-
-	if (video_pts >= 0)
-	{
-		imgs->push_back({ std::move(img) ,(__int64)video_pts });
-		if (imgs->size() >= maxImgs)
+		QQueue<Video>* imgs;
+		if (data->isImage1)
 		{
-			data->isImage1 = !data->isImage1;
-			data->isWorking = false;
+			imgs = &data->images1;
+		}
+		else
+		{
+			imgs = &data->images2;
 		}
 
-		if (!data->isSignaled)
+		unsigned char *temp = (unsigned char *)av_malloc(imgSize);
+		memcpy(temp, data->out_buffer, imgSize);
+		QImage img = std::move(QImage((uchar *)temp, data->curWidth, data->curHeight, QImage::Format_RGB32, cleanUp, temp));
+
+		double video_pts = 0;
+
+		if (packet.dts == AV_NOPTS_VALUE && data->pFrame->opaque&& *(uint64_t*)data->pFrame->opaque != AV_NOPTS_VALUE)
 		{
-			data->isSignaled = true;
-			emit frameGetted();
+			video_pts = *(uint64_t *)data->pFrame->opaque;
+		}
+		else if (packet.dts != AV_NOPTS_VALUE)
+		{
+			video_pts = packet.dts;
+		}
+		else
+		{
+			video_pts = 0;
+		}
+
+		video_pts *= av_q2d(data->pFormatCtx->streams[data->videoindex]->time_base);
+		video_pts *= 1000;
+
+		if (video_pts >= 0)
+		{
+			imgs->push_back({ std::move(img) ,(__int64)video_pts });
+			if (imgs->size() >= maxImgs)
+			{
+				data->isImage1 = !data->isImage1;
+				data->isWorking = false;
+			}
+
+			if (data->isSeeked)
+			{
+				data->isSeeked = false;
+				emit seeked((__int64)video_pts);
+			}
+
+			if (!data->isSignaled)
+			{
+				data->isSignaled = true;
+				emit frameGetted();
+			}
 		}
 	}
 
 	return true;
 }
 
-bool Decoder::decodeAudio()
+bool Decoder::decodeAudio(AVPacket &packet)
 {
 	QMutexLocker locker(&data->audioMutex);
 
-	if (data->packet->stream_index != data->audioindex)
+	if (packet.stream_index != data->audioindex)
 	{
 		return false;
 	}
 
-	int got_picture;
+	int ret = avcodec_send_packet(data->pCodecCtxA, &packet);
 
-	int ret = avcodec_decode_audio4(data->pCodecCtxA, data->pFrame, &got_picture, data->packet);
-
-	if (ret < 0)
+	if (ret != 0)
 	{
 		return false;
 	}
 
-	if (got_picture != 0)
+	while (avcodec_receive_frame(data->pCodecCtxA,data->pFrame) == 0)
 	{
 		if (data->aFrame_ReSample->nb_samples != data->pFrame->nb_samples)
 		{
@@ -465,6 +503,12 @@ bool Decoder::decodeAudio()
 				data->audioCallBack(data->audioArg, { buffer, resampled_data_size });
 			}
 
+			if (data->isSeeked && data->videoindex != 0)
+			{
+				data->isSeeked = false;
+				emit seeked(0);
+			}
+
 			if (!data->isSignaled)
 			{
 				data->isSignaled = true;
@@ -490,6 +534,8 @@ static int parseTime(char *ass, int i)
 static QString parseText(char *ass)
 {
 	QString result;
+	char buffer[1024] = {0};
+	int it = 0;
 
 	for (int i = 0; ass[i] != 0; ++i)
 	{
@@ -507,9 +553,12 @@ static QString parseText(char *ass)
 		}
 		else
 		{
-			result.append(ass[i]);
+			buffer[it] = ass[i];
+			++ it;
 		}
 	}
+
+	result = QString::fromUtf8(buffer);
 
 	return result.trimmed();
 }
@@ -547,18 +596,18 @@ static Subtitle parseAss(char *ass)
 	return result;
 }
 
-bool Decoder::decodeSubtitle()
+bool Decoder::decodeSubtitle(AVPacket &packet)
 {
 	QMutexLocker locker(&data->subtitleMutex);
 
-	if (data->packet->stream_index != data->subtitleindex)
+	if (packet.stream_index != data->subtitleindex)
 	{
 		return false;
 	}
 
 	int got_picture;
 	AVSubtitle subtitle;
-	int ret = avcodec_decode_subtitle2(data->pCodecCtxS, &subtitle, &got_picture, data->packet);
+	int ret = avcodec_decode_subtitle2(data->pCodecCtxS, &subtitle, &got_picture, &packet);
 
 	if (ret < 0)
 	{

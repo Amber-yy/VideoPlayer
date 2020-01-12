@@ -10,6 +10,7 @@ signals:
 	void sigSwitchAudio(int);
 	void sigSwitchSubtitle(int);
 	void sigPauseState(bool);
+	void sigSeek(int);
 public:
 	ControlBar(QWidget *parent);
 	~ControlBar();
@@ -20,6 +21,8 @@ public:
 	void startPlay();
 	void setProgress(int second);
 protected:
+	void onBack();
+	void onForward();
 	void onPauseState();
 	void onAudioChange(int index);
 	void onSubtitleChange(int index);
@@ -28,6 +31,5 @@ protected:
 protected:
 	struct Data;
 	Data *data = nullptr;
-
 };
 

@@ -63,6 +63,9 @@
     <QtMoc Include="ControlBar.h">
       <Filter>Header Files</Filter>
     </QtMoc>
+    <QtMoc Include="DurationSlider.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
   </ItemGroup>
   <ItemGroup>
     <QtUic Include="VideoPlayer.ui">
@@ -76,9 +79,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DecodeThread.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DurationSlider.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

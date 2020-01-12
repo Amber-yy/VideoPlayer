@@ -22,6 +22,8 @@ struct Subtitle
 	int end;
 };
 
+struct AVPacket;
+
 #define MAX_WIDTH 3840
 #define MAX_HEIGHT 2160
 
@@ -30,6 +32,7 @@ class Decoder:public QObject
 	Q_OBJECT
 signals:
 	void frameGetted();
+	void seeked(long long pts);
 public:
 	Decoder(QObject *parent = nullptr);
 	~Decoder();
@@ -46,14 +49,15 @@ public:
 	void switchWorkState(bool work);
 	void decode();
 	void stop();
+	void seek(int pos);
 	QStringList getAudios();
 	QStringList getSubtitles();
 	QString openAudioDecodec(int index);
 	QString openSubTitleDecodec(int index);
 protected:
-	bool decodeVideo();
-	bool decodeAudio();
-	bool decodeSubtitle();
+	bool decodeVideo(AVPacket &packet);
+	bool decodeAudio(AVPacket &packet);
+	bool decodeSubtitle(AVPacket &packet);
 	QString openVideoDecodec(int index);
 	void cleanVideo();
 	void cleanAudio();

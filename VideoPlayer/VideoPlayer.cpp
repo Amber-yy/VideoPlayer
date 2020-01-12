@@ -18,7 +18,7 @@
 
 extern void ShiftVolume(char* buf, int size, double vol);
 
-const int audioBufferSize = 1024 * 1024 * 6;
+const int audioBufferSize = 1024 * 1024;
 const int maxAudioSize = 30;
 const int controlHide = 5000;
 
@@ -37,6 +37,8 @@ struct VideoPlayer::Data
 	int currentAudioIt;
 	bool shown = true;
 	bool pause = false;
+	bool controlHover = false;
+	bool clearVideo = false;
 	Video tempVideo;
 	clock_t start;
 	clock_t pauseTime;
@@ -86,9 +88,11 @@ VideoPlayer::VideoPlayer(QWidget *parent):QWidget(parent)
 	connect(data->timer, &QTimer::timeout, this, &VideoPlayer::OnVideo);
 	connect(data->timerA, &QTimer::timeout, this, &VideoPlayer::OnAudio);
 	connect(data->decoder, &Decoder::frameGetted,this,&VideoPlayer::OnFrameGetted);
+	connect(data->decoder, &Decoder::seeked, this, &VideoPlayer::seeked);
 	connect(data->control, &ControlBar::sigSwitchAudio, this, &VideoPlayer::switchAudio);
 	connect(data->control, &ControlBar::sigSwitchSubtitle, this, &VideoPlayer::switchSubtitle);
 	connect(data->control, &ControlBar::sigPauseState, this, &VideoPlayer::setPause);
+	connect(data->control, &ControlBar::sigSeek, this, &VideoPlayer::seek);
 
 	data->control->installEventFilter(this);
 	data->control->setMouseTracking(true);
@@ -114,8 +118,9 @@ void VideoPlayer::OnVideo()
 	}
 
 	clock_t cur = clock() - data->start;
+	data->control->setProgress(cur / 1000);
 
-	if (clock() - data->controlActive > controlHide)
+	if (clock() - data->controlActive > controlHide && data->control->isVisible() && !data->controlHover)
 	{
 		data->control->hide();
 	}
@@ -128,11 +133,30 @@ void VideoPlayer::OnVideo()
 			data->render->addSubtitle(data->subtitles.takeAt(0),cur);
 			data->subtitleMutex.unlock();
 		}
+		if (data->clearVideo)
+		{
+			data->subtitleMutex.lock();
+			data->subtitles.clear();
+			data->subtitleMutex.unlock();
+		}
 	}
 
 	if (data->imgs->size())
 	{
-		if (data->shown)
+		if (data->clearVideo)
+		{
+			data->tempVideo = data->imgs->takeFirst();
+			data->render->cleanSubtitle();
+			if (cur >= data->tempVideo.pts)
+			{
+				data->clearVideo = false;
+			}
+			else
+			{
+				return;
+			}
+		}
+		else if (data->shown)
 		{
 			data->tempVideo = data->imgs->takeFirst();
 			data->render->setImage(data->tempVideo.img);
@@ -185,6 +209,11 @@ void VideoPlayer::OnAudio()
 		{
 			data->decoder->switchWorkState(true);
 		}
+	}
+
+	if (!data->audios.size() && data->decoder->getVideo() != 0)
+	{
+		data->decoder->switchWorkState(true);
 	}
 
 	if (data->audio->bytesFree() && data->currentAudio.buffer)
@@ -319,12 +348,38 @@ void VideoPlayer::setPause(bool p)
 	{
 		data->start += clock() - data->pauseTime;
 	}
-
 }
 
 bool VideoPlayer::isPlaying()
 {
 	return data->timer->isActive()||data->timerA->isActive();
+}
+
+void VideoPlayer::seek(int pos)
+{
+	data->decoder->seek(pos);
+	if (data->decoder->getVideo() != 0)
+	{
+		data->start = clock() - pos * 1000;
+		data->audioMutex.lock();
+		for (Audio a : data->audios)
+		{
+			delete[] a.buffer;
+		}
+		data->audios.clear();
+		data->audioMutex.unlock();
+		data->decoder->switchWorkState(true);
+	}
+}
+
+void VideoPlayer::seeked(long long pts)
+{
+	data->clearVideo = true;
+
+	if (data->decoder->getVideo() == 0)
+	{
+		data->start = clock() - pts;
+	}
 }
 
 QRect VideoPlayer::getControlRect()
@@ -334,24 +389,29 @@ QRect VideoPlayer::getControlRect()
 
 bool VideoPlayer::eventFilter(QObject * obj, QEvent * e)
 {
-	if (e->type() != QEvent::MouseMove)
-	{
-		return QWidget::eventFilter(obj, e);
-	}
+	QEvent::Type tp = e->type();
 
-	if (obj == data->render)
+	if (obj == data->render && tp == QEvent::MouseMove)
 	{
 		QPoint pt = dynamic_cast<QMouseEvent *>(e)->pos();
 		if (getControlRect().contains(pt))
 		{
 			data->controlActive = clock();
+			data->controlHover = true;
 			data->control->show();
 		}
 	}
 	else if (obj == data->control)
 	{
-		data->controlActive = clock();
-		return false;
+		if (tp == QEvent::Leave)
+		{
+			data->controlHover = false;
+		}
+		else if (tp == QEvent::MouseMove)
+		{
+			data->controlActive = clock();
+			data->controlHover = true;
+		}
 	}
 
 	return QWidget::eventFilter(obj, e);

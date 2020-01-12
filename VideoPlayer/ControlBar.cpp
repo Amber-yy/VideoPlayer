@@ -101,6 +101,9 @@ ControlBar::ControlBar(QWidget *parent) :QWidget(parent)
 	connect(data->subtitles, ptr, this, &ControlBar::onSubtitleChange);
 	connect(data->pause,&QPushButton::clicked,this,&ControlBar::onPauseState);
 	connect(data->play, &QPushButton::clicked, this, &ControlBar::onPauseState);
+	connect(data->duration, &DurationSlider::sigSeek, this, &ControlBar::sigSeek);
+	connect(data->left,&QPushButton::clicked,this,&ControlBar::onBack);
+	connect(data->right, &QPushButton::clicked, this, &ControlBar::onForward);
 
 	QFile file("data/ControlBar.css");
 
@@ -149,6 +152,25 @@ void ControlBar::startPlay()
 void ControlBar::setProgress(int second)
 {
 	data->duration->setValue(second);
+}
+
+void ControlBar::onBack()
+{
+	int cv = data->duration->getValue();
+	if (cv > 10)
+	{
+		emit sigSeek(cv - 10);
+	}
+}
+
+void ControlBar::onForward()
+{
+	int cv = data->duration->getValue();
+	int max = data->duration->getMax();
+	if (cv+10<max)
+	{
+		emit sigSeek(cv + 10);
+	}
 }
 
 void ControlBar::onPauseState()

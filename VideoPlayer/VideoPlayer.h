@@ -22,6 +22,8 @@ public:
 	void switchSubtitle(int index);
 	void setPause(bool p);
 	bool isPlaying();
+	void seek(int pos);
+	void seeked(long long pts);
 protected:
 	QRect getControlRect();
 	bool eventFilter(QObject *obj, QEvent *e)override;

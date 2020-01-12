@@ -6,7 +6,9 @@
 
 struct VideoRender::Data
 {
-	QList<Subtitle> currentSubtitles;
+	Subtitle currentSubtitle;
+	clock_t cur;
+	clock_t start = 0;
 	QImage img;
 	bool textIni = false;
 };
@@ -28,26 +30,20 @@ void VideoRender::setImage(QImage & img)
 
 void VideoRender::addSubtitle(Subtitle title, clock_t cur)
 {
-	data->currentSubtitles.push_back(title);
-
-	for (auto it = data->currentSubtitles.begin(); it != data->currentSubtitles.end(); ++it)
-	{
-		if (cur >= it->end)
-		{
-			auto temp = it++;
-			data->currentSubtitles.erase(temp);
-			if (it == data->currentSubtitles.end())
-			{
-				break;
-			}
-		}
-	}
+	data->currentSubtitle = title;
+	data->cur = cur;
+	data->start = clock();
 }
 
 void VideoRender::stopPlay()
 {
 	data->img.fill(Qt::black);
-	data->currentSubtitles.clear();
+	data->start = 0;
+}
+
+void VideoRender::cleanSubtitle()
+{
+	data->currentSubtitle.end = -1;
 }
 
 QSize VideoRender::getBestSize(QSize win,QSize img)
@@ -73,6 +69,11 @@ void VideoRender::paintEvent(QPaintEvent * e)
 	QPainter painter(this);
 	painter.fillRect(rect(), Qt::black);
 
+	if (data->img.isNull())
+	{
+		return;
+	}
+
 	QRect re;
 	int w = width();
 	int h = height();
@@ -93,11 +94,13 @@ void VideoRender::paintEvent(QPaintEvent * e)
 	}
 
 	painter.drawImage(re, data->img.scaled(size()));
-	QString str;
 
-	for (auto s : data->currentSubtitles)
+	QString str;
+	clock_t delta = clock() - data->start;
+
+	if (data->cur + delta <= data->currentSubtitle.end)
 	{
-		str.append(s.text + "\n");
+		str = data->currentSubtitle.text + "\n";
 	}
 
 	if (!str.isEmpty())
@@ -120,6 +123,7 @@ void VideoRender::paintEvent(QPaintEvent * e)
 		painter.setFont(font);
 		painter.drawText(QRect(0, 0, 100, 100), "loading");
 		data->textIni = true;
+		update();
 	}
 
 }

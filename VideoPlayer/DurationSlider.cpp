@@ -9,6 +9,7 @@ struct DurationSlider::Data
 	int minValue = 0;
 	int maxValue = 0;
 	int curentValue= 0;
+	bool isPressed = false;
 };
 
 static QString timeToStr(int t)
@@ -42,7 +43,7 @@ void DurationSlider::setRange(int min, int max)
 
 void DurationSlider::setValue(int value)
 {
-	if (data->curentValue != value)
+	if (!data->isPressed && data->curentValue != value)
 	{
 		data->curentValue = value;
 		if (isVisible())
@@ -50,6 +51,16 @@ void DurationSlider::setValue(int value)
 			update();
 		}
 	}
+}
+
+int DurationSlider::getMax()
+{
+	return data->maxValue;
+}
+
+int DurationSlider::getValue()
+{
+	return data->curentValue;
 }
 
 void DurationSlider::paintEvent(QPaintEvent * e)
@@ -77,12 +88,38 @@ void DurationSlider::paintEvent(QPaintEvent * e)
 
 void DurationSlider::mousePressEvent(QMouseEvent * e)
 {
+	if (!data->maxValue)
+	{
+		return;
+	}
+	
+	data->isPressed = true;
+	int w = e->x();
+	int cw = ((double)data->curentValue / data->maxValue)*w + 5;
+
+	if (w<cw - 3 || w>cw + 10)
+	{
+		data->curentValue = (double)w / width()*data->maxValue;
+		update();
+	}
+
 }
 
 void DurationSlider::mouseMoveEvent(QMouseEvent * e)
 {
+	if (!data->maxValue || !data->isPressed)
+	{
+		return;
+	}
+
+	int w = e->x();
+	int cw = ((double)data->curentValue / data->maxValue)*w + 5;
+	data->curentValue = (double)w / width()*data->maxValue;
+	update();
 }
 
 void DurationSlider::mouseReleaseEvent(QMouseEvent * e)
 {
+	data->isPressed = false;
+	emit sigSeek(data->curentValue);
 }

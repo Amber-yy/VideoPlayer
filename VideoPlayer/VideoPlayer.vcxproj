@@ -120,7 +120,7 @@
     <QtMoc Include="Decoder.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="DurationSlider.h" />
+    <QtMoc Include="DurationSlider.h" />
     <QtMoc Include="ControlBar.h" />
     <ClInclude Include="DecodeThread.h" />
   </ItemGroup>
