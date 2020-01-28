@@ -26,7 +26,10 @@ public:
 	void seeked(long long pts);
 protected:
 	QRect getControlRect();
-	bool eventFilter(QObject *obj, QEvent *e)override;
+	virtual bool eventFilter(QObject *obj, QEvent *e)override;
+	virtual void keyPressEvent(QKeyEvent *e)override;
+	virtual void mouseDoubleClickEvent(QMouseEvent *e)override;
+	virtual void changeEvent(QEvent *e)override;
 	virtual void resizeEvent(QResizeEvent *e)override;
 	virtual void closeEvent(QCloseEvent *e)override;
 protected:

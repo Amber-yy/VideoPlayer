@@ -39,6 +39,7 @@ struct VideoPlayer::Data
 	bool pause = false;
 	bool controlHover = false;
 	bool clearVideo = false;
+	bool isFullScreen = false;
 	Video tempVideo;
 	clock_t start;
 	clock_t pauseTime;
@@ -251,18 +252,6 @@ void VideoPlayer::OnFrameGetted()
 	data->control->setDuration(data->decoder->getDuration());
 	data->control->startPlay();
 
-	QRect screenRect = QApplication::desktop()->screenGeometry();
-	QSize imgSize = data->decoder->getVideoSize();
-
-	if (imgSize.width() > screenRect.width() / 2 || imgSize.height() > screenRect.height() / 2)
-	{
-		int width = screenRect.width() / 2;
-		int height = ((double)imgSize.height() / imgSize.width()) * width;
-		imgSize = QSize(width,height);
-	}
-
-	resize(imgSize);
-
 	data->pause = false;
 }
 
@@ -415,6 +404,42 @@ bool VideoPlayer::eventFilter(QObject * obj, QEvent * e)
 	}
 
 	return QWidget::eventFilter(obj, e);
+}
+
+void VideoPlayer::keyPressEvent(QKeyEvent * e)
+{
+	if (e->key() == Qt::Key_Escape && data->isFullScreen)
+	{
+		showNormal();
+		data->isFullScreen = false;
+	}
+}
+
+void VideoPlayer::mouseDoubleClickEvent(QMouseEvent * e)
+{
+	if (data->isFullScreen)
+	{
+		showNormal();
+	}
+	else
+	{
+		showFullScreen();
+	}
+
+	data->isFullScreen = !data->isFullScreen;
+}
+
+void VideoPlayer::changeEvent(QEvent * e)
+{
+	if (e->type() != QEvent::WindowStateChange)
+	{
+		return;
+	}
+	if (this->windowState() == Qt::WindowMaximized)
+	{
+		showFullScreen();
+		data->isFullScreen = true;
+	}
 }
 
 void VideoPlayer::resizeEvent(QResizeEvent * e)
